@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useAccount, useSignMessage } from "wagmi";
-import { getBytes, keccak256, SigningKey, Wallet } from "ethers";
 import { hmac } from "@noble/hashes/hmac";
 import { keccak_256 } from "@noble/hashes/sha3";
+import { getBytes, keccak256, SigningKey, Wallet } from "ethers";
+import { useCallback, useEffect, useState } from "react";
+import { useAccount, useSignMessage } from "wagmi";
 
 interface SIWEState {
   isSignedIn: boolean;
@@ -17,6 +17,48 @@ interface SIWEState {
 const SIWE_STORAGE_KEY = "siwe-session";
 const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
+// Custom event for SIWE state changes
+const SIWE_EVENT = "siwe-state-changed";
+
+// Helper function to load SIWE state from localStorage
+const loadSIWEState = (address: string): SIWEState => {
+  try {
+    const stored = localStorage.getItem(SIWE_STORAGE_KEY);
+    if (stored) {
+      const session = JSON.parse(stored);
+
+      // Check if session is for current address and not expired
+      if (
+        session.address === address &&
+        session.expiry > Date.now() &&
+        session.derivedKey
+      ) {
+        // Recreate derived wallet from stored key
+        const signingKey = new SigningKey(session.derivedKey);
+        const derivedWallet = new Wallet(signingKey);
+
+        return {
+          isSignedIn: true,
+          isSigning: false,
+          derivedWallet,
+          sessionExpiry: session.expiry,
+        };
+      } else {
+        // Clear expired/invalid session
+        localStorage.removeItem(SIWE_STORAGE_KEY);
+      }
+    }
+  } catch (error) {
+    console.warn("Failed to load SIWE session:", error);
+    localStorage.removeItem(SIWE_STORAGE_KEY);
+  }
+
+  return {
+    isSignedIn: false,
+    isSigning: false,
+  };
+};
+
 export function useSIWE() {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
@@ -26,7 +68,7 @@ export function useSIWE() {
     isSigning: false,
   });
 
-  // Load existing session on mount
+  // Load existing session on mount and listen for changes
   useEffect(() => {
     if (!isConnected || !address) {
       setSiweState((prev) => ({
@@ -37,38 +79,21 @@ export function useSIWE() {
       return;
     }
 
-    try {
-      const stored = localStorage.getItem(SIWE_STORAGE_KEY);
-      if (stored) {
-        const session = JSON.parse(stored);
+    // Load initial state
+    const initialState = loadSIWEState(address);
+    setSiweState(initialState);
 
-        // Check if session is for current address and not expired
-        if (
-          session.address === address &&
-          session.expiry > Date.now() &&
-          session.derivedKey
-        ) {
-          // Recreate derived wallet from stored key
-          const signingKey = new SigningKey(session.derivedKey);
-          const derivedWallet = new Wallet(signingKey);
+    // Listen for SIWE state changes from other components
+    const handleSIWEChange = () => {
+      const newState = loadSIWEState(address);
+      setSiweState(newState);
+    };
 
-          setSiweState({
-            isSignedIn: true,
-            isSigning: false,
-            derivedWallet,
-            sessionExpiry: session.expiry,
-          });
+    window.addEventListener(SIWE_EVENT, handleSIWEChange);
 
-          console.log("✅ SIWE session restored for", address);
-        } else {
-          // Clear expired/invalid session
-          localStorage.removeItem(SIWE_STORAGE_KEY);
-        }
-      }
-    } catch (error) {
-      console.warn("Failed to restore SIWE session:", error);
-      localStorage.removeItem(SIWE_STORAGE_KEY);
-    }
+    return () => {
+      window.removeEventListener(SIWE_EVENT, handleSIWEChange);
+    };
   }, [address, isConnected]);
 
   // Generate SIWE message
@@ -118,11 +143,12 @@ export function useSIWE() {
     setSiweState((prev) => ({ ...prev, isSigning: true, error: undefined }));
 
     try {
-      // Generate deterministic nonce from address
-      const nonce = keccak256(getBytes(address + Date.now().toString())).slice(
-        2,
-        18
-      );
+      // Generate deterministic nonce from address and timestamp
+      const timestamp = Date.now().toString();
+      const nonceInput = `${address}${timestamp}`;
+      const nonce = keccak256(
+        getBytes(new TextEncoder().encode(nonceInput))
+      ).slice(2, 18);
       const message = generateSIWEMessage(address, nonce);
 
       console.log("🔏 Signing SIWE message...");
@@ -154,12 +180,17 @@ export function useSIWE() {
 
       localStorage.setItem(SIWE_STORAGE_KEY, JSON.stringify(session));
 
-      setSiweState({
+      const newState = {
         isSignedIn: true,
         isSigning: false,
         derivedWallet,
         sessionExpiry: expiry,
-      });
+      };
+
+      setSiweState(newState);
+
+      // Notify other components about the state change
+      window.dispatchEvent(new CustomEvent(SIWE_EVENT));
 
       console.log("✅ SIWE sign-in successful");
       console.log("🔑 Derived wallet address:", derivedWallet.address);
@@ -185,11 +216,16 @@ export function useSIWE() {
   // Sign out
   const signOut = useCallback(() => {
     localStorage.removeItem(SIWE_STORAGE_KEY);
-    setSiweState({
+    const newState = {
       isSignedIn: false,
       isSigning: false,
       derivedWallet: undefined,
-    });
+    };
+    setSiweState(newState);
+
+    // Notify other components about the state change
+    window.dispatchEvent(new CustomEvent(SIWE_EVENT));
+
     console.log("🚪 SIWE signed out");
   }, []);
 

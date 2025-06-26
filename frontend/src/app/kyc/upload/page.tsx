@@ -2,6 +2,7 @@
 
 import { ArrowLeft, Shield } from "lucide-react";
 import { useRouter } from "next/navigation";
+import React from "react";
 import { LoginGated } from "../../../components/auth/LoginGated";
 import { DocumentUpload } from "../../../components/kyc/DocumentUpload";
 import { Button } from "../../../components/ui/button";

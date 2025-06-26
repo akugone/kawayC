@@ -7,6 +7,7 @@ import {
   LogOut,
   Shield,
 } from "lucide-react";
+import React from "react";
 import { useAccount } from "wagmi";
 import { useSIWE } from "../../hooks/useSIWE";
 import { Button } from "../ui/button";

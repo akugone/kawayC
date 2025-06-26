@@ -10,7 +10,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { LoginGated } from "../../components/auth/LoginGated";
 import { Button } from "../../components/ui/button";
 import { DebugSection } from "../../components/ui/debug-section";
