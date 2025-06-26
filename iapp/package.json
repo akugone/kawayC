@@ -1,0 +1,22 @@
+{
+  "name": "iexec-hello-world-iapp",
+  "version": "0.0.1",
+  "description": "",
+  "main": "src/app.js",
+  "type": "module",
+  "dependencies": {
+    "@iexec/dataprotector-deserializer": "^0.1.1",
+    "@tensorflow/tfjs-node": "^4.22.0",
+    "@vladmandic/face-api": "^1.7.15",
+    "canvas": "^3.1.2",
+    "figlet": "^1.8.1",
+    "onnxruntime-node": "^1.22.0-rev",
+    "sharp": "^0.34.2",
+    "tesseract.js": "^6.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}

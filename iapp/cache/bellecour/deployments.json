@@ -1,0 +1,32 @@
+[
+  {
+    "sconifiedImage": "seddikbenlamine/kawayc:0.0.1-tdx-0ccd5925a612",
+    "appContractAddress": "0x194AA55fc47273fb25A395E64A984573a78cCfAD",
+    "owner": "0xE6bc5AaC77158C5F35D220a7b42f7c1368C297c7",
+    "date": "2025-06-26T17:59:00.456Z"
+  },
+  {
+    "sconifiedImage": "seddikbenlamine/kawayc:0.0.1-tdx-e9ad305dbdf3",
+    "appContractAddress": "0xBA2C76C8389AF21aEE384A52CC895b5C99D0F858",
+    "owner": "0xE6bc5AaC77158C5F35D220a7b42f7c1368C297c7",
+    "date": "2025-06-26T17:32:21.170Z"
+  },
+  {
+    "sconifiedImage": "seddikbenlamine/kawayc:0.0.1-tdx-3df6a22c61af",
+    "appContractAddress": "0x89F1f18B0C7e4A468e1988Be24B7edff83FDa514",
+    "owner": "0xE6bc5AaC77158C5F35D220a7b42f7c1368C297c7",
+    "date": "2025-06-26T17:07:01.008Z"
+  },
+  {
+    "sconifiedImage": "seddikbenlamine/kawayc:0.0.1-tdx-9e10f2bebef0",
+    "appContractAddress": "0xC768a6cB76120Af0ab75232755743b496B3B38A8",
+    "owner": "0xE6bc5AaC77158C5F35D220a7b42f7c1368C297c7",
+    "date": "2025-06-26T16:46:25.922Z"
+  },
+  {
+    "sconifiedImage": "seddikbenlamine/kawayc:0.0.1-tdx-71035a21208f",
+    "appContractAddress": "0x4a41EEf27052bfEb08CB4FE334890Aea32C3b5a7",
+    "owner": "0xE6bc5AaC77158C5F35D220a7b42f7c1368C297c7",
+    "date": "2025-06-26T16:18:45.397Z"
+  }
+]
