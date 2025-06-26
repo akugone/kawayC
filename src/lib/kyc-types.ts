@@ -1,7 +1,7 @@
 export interface KYCDocument {
   type: "selfie" | "id" | "addressProof";
   file: File;
-  base64: string;
+  buffer: Buffer;
   preview: string;
   encrypted?: string;
 }

@@ -14,6 +14,7 @@ import {
   ExternalLink,
   MapPin,
   QrCode,
+  RefreshCw,
   Share2,
   Shield,
   Smartphone,
@@ -55,14 +56,14 @@ export default function KYCResultPage() {
 
         setWalletPass(pass);
 
-        // Generate QR code as data URL (simplified for demo)
+        // TODO: Replace with actual QR code library
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
         if (ctx) {
           canvas.width = 200;
           canvas.height = 200;
 
-          // Simple QR code representation (in real app, use QR library)
+          // Simple QR code representation
           ctx.fillStyle = "#000";
           for (let i = 0; i < 20; i++) {
             for (let j = 0; j < 20; j++) {
@@ -103,8 +104,7 @@ export default function KYCResultPage() {
     const url =
       type === "apple" ? walletPass.appleWalletUrl : walletPass.googleWalletUrl;
 
-    // In a real implementation, these would be actual wallet URLs
-    // For demo, we'll show an alert
+    // TODO: Implement proper wallet integration
     alert(`Would redirect to ${type} Wallet with pass: ${url}`);
 
     // Real implementation would be:
@@ -134,6 +134,15 @@ export default function KYCResultPage() {
   const handleStartOver = () => {
     resetFlow();
     router.push("/kyc");
+  };
+
+  const handleReset = () => {
+    // Clear localStorage
+    localStorage.removeItem("kyc-flow-state");
+    // Reset the flow
+    resetFlow();
+    // Redirect to home
+    router.push("/");
   };
 
   if (!isConnected) {
@@ -170,20 +179,23 @@ export default function KYCResultPage() {
     <div className="max-w-4xl mx-auto p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="ghost"
-            onClick={() => router.push("/kyc")}
-            className="mr-4"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
-          </Button>
+        <Button variant="ghost" onClick={() => router.push("/kyc")}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back
+        </Button>
+        <div className="text-center">
+          <h1 className="text-3xl font-bold">Verification Complete</h1>
+          <p className="text-gray-600">Your digital identity card is ready</p>
         </div>
-        <div>
-          <h1 className="text-3xl font-bold">Digital Identity Card</h1>
-          <p className="text-gray-600">Your verified digital ID is ready</p>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleReset}
+          className="text-red-600 border-red-300 hover:bg-red-50"
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Reset All
+        </Button>
       </div>
 
       {/* Success Banner */}

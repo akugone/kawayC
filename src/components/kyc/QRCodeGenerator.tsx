@@ -25,7 +25,7 @@ export function QRCodeGenerator({
   const [copied, setCopied] = useState(false);
   const [generating, setGenerating] = useState(false);
 
-  // Simple QR code pattern generator (replace with real QR library in production)
+  // TODO: Replace with actual QR code library (e.g., qrcode)
   const generateQRPattern = (data: string, canvas: HTMLCanvasElement) => {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;

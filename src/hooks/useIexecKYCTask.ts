@@ -52,7 +52,7 @@ export function useIexecKYCTask(
     [addLog]
   );
 
-  // Simplified: Just trigger the iExec app with protected data
+  // Trigger the iExec app with protected data
   const startKYCProcessing = useCallback(
     async (params: TaskParams) => {
       if (!dataProtectorCore) {
@@ -62,7 +62,7 @@ export function useIexecKYCTask(
       try {
         updateStatus("TRIGGERING", 10, "🚀 Triggering iExec KYC app...");
 
-        // Configuration de l'app iExec
+        // Get the iExec KYC app address from environment
         const appAddress = process.env.NEXT_PUBLIC_IEXEC_KYC_APP_ADDRESS;
         if (!appAddress) {
           throw new Error("iExec KYC app address not configured");
@@ -75,8 +75,17 @@ export function useIexecKYCTask(
 
         updateStatus("TRIGGERING", 25, "📡 Triggering app execution...");
 
-        // In a real implementation, you would trigger the iExec app here
-        // For now, we'll simulate the process
+        // TODO: Replace with actual iExec app triggering
+        // This is where you would use the iExec SDK to trigger your KYC app
+        // Example:
+        // const taskId = await iexec.task.createTask({
+        //   app: appAddress,
+        //   dataset: params.protectedDataAddress,
+        //   maxPrice: params.maxPrice,
+        //   tag: params.tag,
+        // });
+
+        // For now, we'll simulate the task creation
         const taskId = `task-${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 8)}`;
@@ -96,10 +105,28 @@ export function useIexecKYCTask(
           "⚡ iExec app processing in secure enclave..."
         );
 
-        // Simulate processing time
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        // TODO: Replace with actual task monitoring
+        // This is where you would poll the task status
+        // Example:
+        // const pollTaskStatus = async () => {
+        //   const status = await iexec.task.getTaskStatus(taskId);
+        //   if (status === 'RUNNING') {
+        //     // Continue polling
+        //   } else if (status === 'COMPLETED') {
+        //     // Get results
+        //   }
+        // };
 
-        // Simulate results (in real implementation, you'd get these from the iExec app)
+        // For now, we'll simulate the processing
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+
+        // TODO: Replace with actual result retrieval
+        // This is where you would get the results from the completed task
+        // Example:
+        // const taskResults = await iexec.task.getTaskResults(taskId);
+        // const kycResults = JSON.parse(taskResults);
+
+        // For now, we'll simulate the results
         const simulatedResults: KYCResults = {
           ageValidated: true,
           countryResidence: "France",

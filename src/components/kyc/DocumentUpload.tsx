@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { DOCUMENT_TYPES, KYCDocument } from "@/lib/kyc-types";
+import { fileToBuffer } from "@/lib/simplified-kyc-data";
 import { CheckCircle, FileText, Home, Upload, User, X } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 
@@ -48,16 +49,8 @@ export function DocumentUpload({
           throw new Error("File size must be less than 10MB");
         }
 
-        // Convert to base64 for preview and processing
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve(result.split(",")[1]); // Remove data:image/... prefix
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
+        // Convert to Buffer for processing
+        const buffer = await fileToBuffer(file);
 
         // Create preview URL
         const preview = URL.createObjectURL(file);
@@ -65,7 +58,7 @@ export function DocumentUpload({
         const kycDocument: KYCDocument = {
           type,
           file,
-          base64,
+          buffer,
           preview,
         };
 

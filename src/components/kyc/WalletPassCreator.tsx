@@ -46,16 +46,13 @@ export function WalletPassCreator({
     setError("");
 
     try {
-      // Simulate pass generation
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
       // Generate wallet URLs
       const walletPass = WalletPassGenerator.generateWalletURLs(
         results,
         protectedDataAddress
       );
 
-      // Generate actual pass files (simulated)
+      // Generate actual pass files
       const applePass = await WalletPassGenerator.generateAppleWalletPass(
         results,
         protectedDataAddress
@@ -93,11 +90,11 @@ export function WalletPassCreator({
 
     try {
       if (type === "apple") {
-        // In production, this would redirect to Apple Wallet
+        // TODO: Implement proper Apple Wallet integration
         const appleUrl = `https://wallet.apple.com/pass/${passUrls.passUrl}`;
         window.open(appleUrl, "_blank");
       } else {
-        // In production, this would use Google Wallet API
+        // TODO: Implement proper Google Wallet integration
         const googleUrl = `https://pay.google.com/gp/v/save/${passUrls.googleWalletUrl}`;
         window.open(googleUrl, "_blank");
       }

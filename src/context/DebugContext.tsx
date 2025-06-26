@@ -12,6 +12,7 @@ interface DebugContextType {
   isDebugEnabled: boolean;
   toggleDebug: () => void;
   setDebugEnabled: (enabled: boolean) => void;
+  resetKycSession: () => void;
 }
 
 const DebugContext = createContext<DebugContextType | undefined>(undefined);
@@ -39,6 +40,11 @@ export function DebugProvider({
         event.preventDefault();
         toggleDebug();
       }
+      // Add keyboard shortcut (Ctrl+Shift+R) to reset KYC session
+      if (event.ctrlKey && event.shiftKey && event.key === "R") {
+        event.preventDefault();
+        resetKycSession();
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -56,8 +62,19 @@ export function DebugProvider({
     localStorage.setItem("debug-enabled", JSON.stringify(enabled));
   };
 
+  const resetKycSession = () => {
+    try {
+      localStorage.removeItem("kyc-flow-state");
+      console.log("🧹 KYC session cleared from localStorage");
+      // Reload the page to ensure clean state
+      window.location.reload();
+    } catch (error) {
+      console.warn("Failed to reset KYC session:", error);
+    }
+  };
+
   const contextValue = useMemo(
-    () => ({ isDebugEnabled, toggleDebug, setDebugEnabled }),
+    () => ({ isDebugEnabled, toggleDebug, setDebugEnabled, resetKycSession }),
     [isDebugEnabled]
   );
 

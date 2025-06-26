@@ -8,6 +8,7 @@ import {
   Circle,
   Clock,
   FileText,
+  RefreshCw,
   Shield,
   Wallet,
 } from "lucide-react";
@@ -18,7 +19,7 @@ import { useAccount } from "wagmi";
 export default function KYCDashboard() {
   const router = useRouter();
   const { isConnected } = useAccount();
-  const { kycFlow, getStepsWithStatus, updateStep } = useKycFlow();
+  const { kycFlow, getStepsWithStatus, updateStep, resetFlow } = useKycFlow();
 
   useEffect(() => {
     if (!isConnected) {
@@ -63,6 +64,15 @@ export default function KYCDashboard() {
       default:
         break;
     }
+  };
+
+  const handleReset = () => {
+    // Clear localStorage
+    localStorage.removeItem("kyc-flow-state");
+    // Reset the flow
+    resetFlow();
+    // Reload the page to ensure clean state
+    window.location.reload();
   };
 
   const getStepIcon = (step: any) => {
@@ -177,7 +187,22 @@ export default function KYCDashboard() {
 
       {/* Current Status */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h3 className="font-semibold text-blue-800 mb-2">Current Status</h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-semibold text-blue-800">Current Status</h3>
+          {(kycFlow.processing ||
+            kycFlow.results ||
+            Object.keys(kycFlow.documents).length > 0) && (
+            <Button
+              onClick={handleReset}
+              variant="outline"
+              size="sm"
+              className="text-red-600 border-red-300 hover:bg-red-50"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Reset Session
+            </Button>
+          )}
+        </div>
         {kycFlow.processing && (
           <p className="text-blue-700">
             🔄 Your documents are being processed securely in the iExec
