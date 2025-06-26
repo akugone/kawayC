@@ -108,7 +108,7 @@ export class WalletPassGenerator {
           {
             key: "signature",
             label: "Digital Signature",
-            value: results.signature || "0x..."
+            value: results.signature ?? "0x..."
           }
         ]
       },

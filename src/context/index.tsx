@@ -3,15 +3,15 @@
 import { wagmiAdapter } from "@/config/wagmiConfig";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode } from "react";
-import { WagmiProvider, type Config } from "wagmi";
+import { WagmiProvider } from "wagmi";
 import { DebugProvider } from "./DebugContext";
 
 // Set up queryClient
 const queryClient = new QueryClient();
 
-function ContextProvider({ children }: { children: ReactNode }) {
+function ContextProvider({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <WagmiProvider config={wagmiAdapter.wagmiConfig as Config}>
+    <WagmiProvider config={wagmiAdapter.wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <DebugProvider>{children}</DebugProvider>
       </QueryClientProvider>

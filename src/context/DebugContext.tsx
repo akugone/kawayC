@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 interface DebugContextType {
   isDebugEnabled: boolean;
@@ -10,7 +16,9 @@ interface DebugContextType {
 
 const DebugContext = createContext<DebugContextType | undefined>(undefined);
 
-export function DebugProvider({ children }: { children: React.ReactNode }) {
+export function DebugProvider({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   const [isDebugEnabled, setIsDebugEnabled] = useState(false);
 
   // Initialize debug state from localStorage on mount
@@ -48,10 +56,13 @@ export function DebugProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("debug-enabled", JSON.stringify(enabled));
   };
 
+  const contextValue = useMemo(
+    () => ({ isDebugEnabled, toggleDebug, setDebugEnabled }),
+    [isDebugEnabled]
+  );
+
   return (
-    <DebugContext.Provider
-      value={{ isDebugEnabled, toggleDebug, setDebugEnabled }}
-    >
+    <DebugContext.Provider value={contextValue}>
       {children}
     </DebugContext.Provider>
   );

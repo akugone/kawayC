@@ -103,10 +103,10 @@ export class ErrorBoundary extends Component<Props, State> {
 function ErrorDetails({
   error,
   errorInfo,
-}: {
+}: Readonly<{
   error?: Error;
   errorInfo?: React.ErrorInfo;
-}) {
+}>) {
   const { isDebugEnabled } = useDebug();
 
   if (!isDebugEnabled || !error) {

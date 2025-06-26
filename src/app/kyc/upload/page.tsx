@@ -4,6 +4,7 @@ import { DocumentUpload } from "@/components/kyc/DocumentUpload";
 import { Button } from "@/components/ui/button";
 import { DebugSection } from "@/components/ui/debug-section";
 import { useKycFlow } from "@/hooks/useKycFlow";
+import { prepareSimpleKYCData } from "@/lib/kyc-data-structure";
 import { IExecDataProtectorCore } from "@iexec/dataprotector";
 import { ArrowLeft, Shield } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -12,7 +13,7 @@ import { useAccount } from "wagmi";
 
 export default function KYCUploadPage() {
   const router = useRouter();
-  const { isConnected, connector } = useAccount();
+  const { isConnected, connector, address } = useAccount();
   const {
     kycFlow,
     addDocument,
@@ -50,13 +51,13 @@ export default function KYCUploadPage() {
   }, [isConnected, connector, router, setError]);
 
   const handleProtectDocuments = async () => {
-    if (
-      !dataProtectorCore ||
-      !kycFlow.documents.selfie ||
-      !kycFlow.documents.id ||
-      !kycFlow.documents.addressProof
-    ) {
-      setError("Please upload all required documents");
+    if (!dataProtectorCore || !allDocumentsUploaded) {
+      setError("Prerequisites not met - please upload all documents");
+      return;
+    }
+
+    if (!address) {
+      setError("Wallet address not available");
       return;
     }
 
@@ -64,51 +65,125 @@ export default function KYCUploadPage() {
     setError("");
 
     try {
-      // Prepare data for protection
-      const documentsData = {
-        selfie: {
-          filename: kycFlow.documents.selfie.file.name,
-          data: kycFlow.documents.selfie.base64,
-          type: kycFlow.documents.selfie.file.type,
-        },
-        id: {
-          filename: kycFlow.documents.id.file.name,
-          data: kycFlow.documents.id.base64,
-          type: kycFlow.documents.id.file.type,
-        },
-        addressProof: {
-          filename: kycFlow.documents.addressProof.file.name,
-          data: kycFlow.documents.addressProof.base64,
-          type: kycFlow.documents.addressProof.file.type,
-        },
-        timestamp: Date.now(),
-        kycType: "ConfidentialKYCDocuments",
-      };
+      // 1. Préparer le dataset KYC simplifié
+      console.log("🔧 Preparing simplified KYC data...");
+      const kycData = await prepareSimpleKYCData(kycFlow.documents);
 
-      console.log("Protecting KYC documents...", {
-        selfieSize: documentsData.selfie.data.length,
-        idSize: documentsData.id.data.length,
-        addressProofSize: documentsData.addressProof.data.length,
+      console.log("📊 Simplified data prepared:", {
+        dataSize: JSON.stringify(kycData).length,
+        hasSelfie: !!kycData.selfie,
+        hasId: !!kycData.id,
+        hasAddressProof: !!kycData.addressProof,
       });
+
+      // 2. Protéger les données avec DataProtector Core
+      console.log("🔐 Starting data protection...");
 
       const protectedData = await dataProtectorCore.protectData({
-        data: documentsData,
-        name: `KYC-Documents-${Date.now()}`,
+        data: kycData,
+        name: `KYC-${Date.now()}`,
+
+        // Callbacks pour status en temps réel
+        onStatusUpdate: ({ title, isDone, payload }) => {
+          console.log(`📡 DataProtector Status: ${title}`, { isDone, payload });
+
+          // Update processing status using available functions
+          if (isDone) {
+            setError(""); // Clear any previous errors
+          } else {
+            // Keep processing state active
+          }
+
+          // Mettre à jour le statut UI
+          const statusMessages: Record<string, string> = {
+            EXTRACT_DATA_SCHEMA: "Analyzing document structure...",
+            CREATE_ZIP_FILE: "Packaging documents securely...",
+            GENERATE_ENCRYPTION_KEY: "Generating encryption keys...",
+            ENCRYPT_FILE: "Encrypting documents...",
+            UPLOAD_ENCRYPTED_FILE: "Uploading to secure storage...",
+            DEPLOY_PROTECTED_DATA: "Deploying on blockchain...",
+            PUSH_SECRET_TO_SMS: "Securing access keys...",
+          };
+
+          updateStatus(statusMessages[title] || title);
+        },
       });
 
-      console.log("Protected Data created:", protectedData);
+      console.log("✅ Protected Data Created:", {
+        address: protectedData.address,
+        txHash: protectedData.transactionHash,
+        owner: protectedData.owner,
+      });
 
+      // 3. Configurer les permissions pour ton iExec app
+      const appAddress = process.env.NEXT_PUBLIC_IEXEC_KYC_APP_ADDRESS;
+      if (!appAddress) {
+        throw new Error("iExec KYC app address not configured");
+      }
+
+      console.log("🔑 Granting access to iExec app...");
+
+      const grantAccessResult = await dataProtectorCore.grantAccess({
+        protectedData: protectedData.address,
+        authorizedApp: appAddress,
+        authorizedUser: "0x0000000000000000000000000000000000000000", // Public access
+        pricePerAccess: 0, // Gratuit pour la démo
+        numberOfAccess: 1, // Une seule utilisation
+
+        onStatusUpdate: ({ title, isDone }) => {
+          console.log(`🔐 Access Grant: ${title}`, { isDone });
+          updateStatus(`Configuring access: ${title}`);
+        },
+      });
+
+      console.log("✅ Access granted:", grantAccessResult);
+
+      // 4. Sauvegarder les infos pour le processing
       setProtectedDataAddress(protectedData.address);
-      updateStep(3);
 
-      // Navigate to processing page
-      router.push("/kyc/processing");
-    } catch (error) {
-      console.error("Error protecting documents:", error);
-      setError(`Failed to protect documents: ${error}`);
+      // Clear any errors and update step
+      setError("");
+      updateStep(3);
+      updateStatus("Protection complete! Ready for processing.");
+
+      // 5. Rediriger vers la page de processing
+      setTimeout(() => {
+        router.push("/kyc/processing");
+      }, 2000);
+    } catch (error: unknown) {
+      console.error("❌ DataProtector Error:", error);
+
+      // Gestion des erreurs spécifiques
+      let errorMessage = "Protection failed";
+
+      if (error instanceof Error) {
+        if (error.message?.includes("insufficient funds")) {
+          errorMessage = "Insufficient xRLC tokens for transaction fees";
+        } else if (error.message?.includes("network")) {
+          errorMessage =
+            "Network connection error - please check your connection to Bellecour sidechain";
+        } else if (error.message?.includes("user rejected")) {
+          errorMessage =
+            "Transaction was rejected - please approve to continue";
+        } else if (error.message?.includes("data size")) {
+          errorMessage = "Documents too large - please reduce file sizes";
+        } else {
+          errorMessage = `Protection failed: ${error.message}`;
+        }
+      }
+
+      setError(errorMessage);
+      updateStatus("Protection failed");
     } finally {
       setProtecting(false);
     }
+  };
+
+  // Fonction helper pour mettre à jour le statut
+  const updateStatus = (message: string) => {
+    // Tu peux ajouter ça à ton state ou hook
+    console.log(`📊 Status Update: ${message}`);
+    // Optionnel: toast notification ou state update
   };
 
   const allDocumentsUploaded =

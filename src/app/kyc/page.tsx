@@ -75,6 +75,16 @@ export default function KYCDashboard() {
     }
   };
 
+  const getStepTitleClass = (step: any) => {
+    if (step.current) {
+      return "text-blue-600";
+    } else if (step.completed) {
+      return "text-green-600";
+    } else {
+      return "text-gray-500";
+    }
+  };
+
   const getFeatureIcon = (feature: string) => {
     switch (feature) {
       case "confidential":
@@ -150,15 +160,7 @@ export default function KYCDashboard() {
             <div key={step.id} className="flex items-center space-x-4">
               {getStepIcon(step)}
               <div className="flex-1">
-                <h3
-                  className={`font-medium ${
-                    step.current
-                      ? "text-blue-600"
-                      : step.completed
-                      ? "text-green-600"
-                      : "text-gray-500"
-                  }`}
-                >
+                <h3 className={`font-medium ${getStepTitleClass(step)}`}>
                   {step.title}
                 </h3>
                 <p className="text-sm text-gray-500">{step.description}</p>

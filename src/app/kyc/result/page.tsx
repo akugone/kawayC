@@ -314,7 +314,7 @@ export default function KYCResultPage() {
                   size="lg"
                 >
                   <div className="flex items-center justify-center">
-                    <span className="text-lg mr-2">🍎</span>
+                    <span className="text-lg mr-2">🍎 </span>
                     Add to Apple Wallet
                   </div>
                 </Button>
@@ -327,7 +327,7 @@ export default function KYCResultPage() {
                   size="lg"
                 >
                   <div className="flex items-center justify-center">
-                    <span className="text-lg mr-2">📱</span>
+                    <span className="text-lg mr-2">📱 </span>
                     Add to Google Wallet
                   </div>
                 </Button>

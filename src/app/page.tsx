@@ -14,13 +14,12 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { useAccount, useDisconnect } from "wagmi";
+import { useAccount } from "wagmi";
 
 export default function Home() {
   const router = useRouter();
   const { open } = useAppKit();
-  const { disconnectAsync } = useDisconnect();
-  const { isConnected, address } = useAccount();
+  const { isConnected } = useAccount();
 
   // Update page title based on connection status
   useEffect(() => {
@@ -31,14 +30,6 @@ export default function Home() {
 
   const login = () => {
     open({ view: "Connect" });
-  };
-
-  const logout = async () => {
-    try {
-      await disconnectAsync();
-    } catch (err) {
-      console.error("Failed to logout:", err);
-    }
   };
 
   const startKYC = () => {
