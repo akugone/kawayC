@@ -10,7 +10,7 @@ import {
   Shield,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { useAccount } from "wagmi";
 import { LoginGated } from "../../../components/auth/LoginGated";
 import { Button } from "../../../components/ui/button";
@@ -48,6 +48,39 @@ export default function KYCProcessingPage() {
 
   // Check prerequisites
   useEffect(() => {
+    const checkLocalStorage = () => {
+      const rawState = localStorage.getItem('kyc-flow-state');
+      console.log("🔍 DIAGNOSTIC - Raw localStorage:", rawState);
+
+      if (rawState) {
+        try {
+          const parsedState = JSON.parse(rawState);
+          console.log("🔍 DIAGNOSTIC - Parsed state:", parsedState);
+          console.log("🔍 DIAGNOSTIC - Has protectedDataAddress?", !!parsedState.protectedDataAddress);
+          console.log("🔍 DIAGNOSTIC - ProtectedDataAddress value:", parsedState.protectedDataAddress);
+        } catch (e) {
+          console.error("🔍 DIAGNOSTIC - Failed to parse localStorage:", e);
+        }
+      } else {
+        console.log("🔍 DIAGNOSTIC - No localStorage found");
+      }
+
+      console.log("🔍 DIAGNOSTIC - Hook state:", {
+        protectedDataAddress: kycFlow.protectedDataAddress,
+        processing: kycFlow.processing,
+        statusMessage: kycFlow.statusMessage,
+      });
+    };
+
+    checkLocalStorage();
+
+    // Check again after a short delay
+    setTimeout(checkLocalStorage, 500);
+    setTimeout(checkLocalStorage, 1000);
+  }, []); // Only run once on mount
+
+  // Check prerequisites - WITH DIAGNOSTICS
+  useEffect(() => {
     console.log("🔍 Processing page - checking prerequisites");
     console.log("📊 Current state:", {
       iexecReady,
@@ -56,15 +89,36 @@ export default function KYCProcessingPage() {
       taskStatus: taskStatus.status,
     });
 
-    if (!kycFlow.protectedDataAddress) {
-      console.log("❌ No protected data address found, redirecting to upload");
-      router.push("/kyc/upload");
-    } else {
-      console.log(
-        "✅ Protected data address found:",
-        kycFlow.protectedDataAddress
-      );
+    // 🔧 Give more time and add manual state check
+    const timeoutId = setTimeout(() => {
+      // Check localStorage one more time before redirecting
+      const rawState = localStorage.getItem('kyc-flow-state');
+      if (rawState) {
+        const parsedState = JSON.parse(rawState);
+        if (parsedState.protectedDataAddress && !kycFlow.protectedDataAddress) {
+          console.log("🔧 FIXING: Found protectedDataAddress in localStorage but not in hook state");
+          console.log("🔧 localStorage has:", parsedState.protectedDataAddress);
+          console.log("🔧 Hook state has:", kycFlow.protectedDataAddress);
+          // Don't redirect - there's a state sync issue
+          return;
+        }
+      }
+
+      if (!kycFlow.protectedDataAddress && !kycFlow.processing) {
+        console.log("❌ No protected data address found after timeout, redirecting to upload");
+        router.push("/kyc/upload");
+      } else {
+        console.log("✅ Protected data address found:", kycFlow.protectedDataAddress);
+      }
+    }, 2000); // Increased timeout to 2 seconds
+
+    // Clear timeout if we find the data quickly
+    if (kycFlow.protectedDataAddress) {
+      clearTimeout(timeoutId);
+      console.log("✅ Protected data address found immediately:", kycFlow.protectedDataAddress);
     }
+
+    return () => clearTimeout(timeoutId);
   }, [
     router,
     kycFlow.protectedDataAddress,
@@ -81,25 +135,49 @@ export default function KYCProcessingPage() {
       hasAddress: !!address,
       iexecReady,
       taskStatus: taskStatus.status,
+      hasTaskId: !!taskStatus.taskId,
+      isProcessing,
     });
 
     if (
       kycFlow.protectedDataAddress &&
       address &&
       iexecReady &&
-      taskStatus.status === "IDLE"
+      !taskStatus.taskId && // ✅ No task started yet
+      !isProcessing && // ✅ Not currently processing
+      taskStatus.status !== "FAILED" // ✅ Not in failed state
     ) {
       console.log("🚀 Auto-starting KYC processing...");
-      startProcessing();
+
+      // Start processing directly
+      startKYCProcessing({
+        protectedDataAddress: kycFlow.protectedDataAddress,
+        userAddress: address,
+        maxPrice: 1000,
+        tag: ["kyc", "confidential"],
+      }).catch((error) => {
+        console.error("❌ Auto-start processing failed:", error);
+        setError(`Processing failed: ${error.message}`);
+      });
     } else {
-      console.log("⏸️ Auto-start conditions not met");
+      console.log("⏸️ Auto-start conditions not met:", {
+        hasProtectedData: !!kycFlow.protectedDataAddress,
+        hasAddress: !!address,
+        iexecReady,
+        noTaskId: !taskStatus.taskId,
+        notProcessing: !isProcessing,
+        notFailed: taskStatus.status !== "FAILED",
+      });
     }
   }, [
     kycFlow.protectedDataAddress,
     address,
     iexecReady,
+    taskStatus.taskId,
     taskStatus.status,
-    startProcessing,
+    isProcessing,
+    startKYCProcessing,
+    setError,
   ]);
 
   // Sync task status with KYC flow
@@ -122,31 +200,6 @@ export default function KYCProcessingPage() {
       }, 3000);
     }
   }, [results, completeProcessing, router]);
-
-  // Main processing function
-  const startProcessing = async () => {
-    if (!kycFlow.protectedDataAddress || !address) {
-      setError("Missing required data for processing");
-      return;
-    }
-
-    try {
-      console.log("🚀 Starting iExec KYC processing workflow...");
-      console.log("📊 Protected Data:", kycFlow.protectedDataAddress);
-
-      await startKYCProcessing({
-        protectedDataAddress: kycFlow.protectedDataAddress,
-        userAddress: address,
-        maxPrice: 1000, // 1000 nRLC
-        tag: ["kyc", "confidential"],
-      });
-
-      console.log("🎉 Processing workflow completed!");
-    } catch (error: any) {
-      console.error("❌ Processing failed:", error);
-      setError(`Processing failed: ${error.message}`);
-    }
-  };
 
   const handleReset = () => {
     // Clear localStorage

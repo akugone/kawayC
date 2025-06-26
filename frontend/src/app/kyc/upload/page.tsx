@@ -93,9 +93,7 @@ export default function KYCUploadPage() {
 
       // 3. Redirect to processing page
       updateStatus("Redirecting to processing...");
-      setTimeout(() => {
-        router.push("/kyc/processing");
-      }, 2000);
+      router.push("/kyc/processing");
     } catch (error: any) {
       console.error("❌ KYC Upload Error:", error);
       setError(error.message ?? "Failed to process documents");
