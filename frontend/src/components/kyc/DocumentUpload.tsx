@@ -30,11 +30,11 @@ export function DocumentUpload({
   const getIcon = () => {
     switch (type) {
       case "selfie":
-        return <User className="w-8 h-8 text-blue-500" />;
+        return <User className="w-8 h-8 text-black" />;
       case "id":
-        return <FileText className="w-8 h-8 text-green-500" />;
+        return <FileText className="w-8 h-8 text-black" />;
       case "addressProof":
-        return <Home className="w-8 h-8 text-purple-500" />;
+        return <Home className="w-8 h-8 text-black" />;
     }
   };
 
@@ -135,15 +135,17 @@ export function DocumentUpload({
 
   if (document) {
     return (
-      <div className="border rounded-lg p-4 bg-green-50 border-green-200">
-        <div className="flex items-start justify-between mb-3">
+      <div className="border rounded-lg p-4 bg-green-50 border-green-200 w-full h-[180px] flex flex-col justify-between">
+        <div className="flex items-start justify-between mb-2">
           <div className="flex items-center space-x-3">
             <CheckCircle className="w-6 h-6 text-green-500" />
             <div>
-              <h3 className="font-medium text-green-800">
+              <h3 className="text-green-800 font-normal">
                 {documentConfig.label}
               </h3>
-              <p className="text-sm text-green-600">{document.file.name}</p>
+              <p className="text-sm text-green-600 font-normal">
+                {document.file.name}
+              </p>
             </div>
           </div>
           <Button
@@ -155,32 +157,30 @@ export function DocumentUpload({
             <X className="w-4 h-4" />
           </Button>
         </div>
-
         {/* Preview */}
-        <div className="mt-3">
+        <div>
           {document.file.type.startsWith("image/") ? (
             <img
               src={document.preview}
               alt={`${type} preview`}
-              className="max-w-full h-32 object-cover rounded border"
+              className="max-w-full h-16 object-cover rounded border"
             />
           ) : (
-            <div className="flex items-center justify-center h-32 bg-gray-100 rounded border">
+            <div className="flex items-center justify-center h-16 bg-gray-100 rounded border">
               <FileText className="w-8 h-8 text-gray-500" />
               <span className="ml-2 text-sm text-gray-600">PDF Document</span>
             </div>
           )}
         </div>
-
-        <div className="mt-3 text-xs text-green-600">
-          ✅ Document ready for secure processing
+        <div className="text-xs text-green-600 mt-2 font-normal">
+          ✅ Document prêt pour le traitement sécurisé
         </div>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="w-full h-[180px]">
       <input
         ref={fileInputRef}
         type="file"
@@ -189,7 +189,6 @@ export function DocumentUpload({
         className="hidden"
         disabled={disabled}
       />
-
       <button
         onClick={handleClick}
         onKeyDown={handleKeyDown}
@@ -199,7 +198,7 @@ export function DocumentUpload({
         disabled={disabled}
         aria-describedby={`${type}-description`}
         className={`
-          w-full border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all
+          w-full h-full border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center
           ${
             dragOver
               ? "border-blue-400 bg-blue-50"
@@ -214,37 +213,36 @@ export function DocumentUpload({
           }
         `}
       >
-        <div className="flex flex-col items-center space-y-4">
+        {uploading ? (
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-2" />
+        ) : (
+          <div className="mb-2">{getIcon()}</div>
+        )}
+        <div>
+          <h3 className="mb-1 text-black font-normal">
+            Glissez et déposez votre image au format (.jpg)
+          </h3>
           {uploading ? (
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-          ) : (
-            getIcon()
-          )}
-
-          <div>
-            <h3 className="font-medium mb-1">{documentConfig.label}</h3>
-            <p className="text-sm text-gray-600 mb-2">
-              {documentConfig.description}
+            <p className="text-sm text-blue-600 font-normal">
+              Chargement du fichier...
             </p>
-
-            {uploading ? (
-              <p className="text-sm text-blue-600">Processing file...</p>
-            ) : (
-              <div className="text-sm text-gray-500">
-                <p>Click to upload or drag and drop</p>
-                <p className="text-xs mt-1">Max file size: 10MB</p>
-              </div>
-            )}
-          </div>
-
-          {/* Hidden description for screen readers */}
-          <div id={`${type}-description`} className="sr-only">
-            {documentConfig.description}. Click to upload or drag and drop
-            files. Maximum file size is 10MB.
-          </div>
-
-          {!uploading && <Upload className="w-5 h-5 text-gray-400" />}
+          ) : (
+            <button
+              type="button"
+              className="mt-2 px-6 py-1 border border-black rounded bg-white text-black text-sm font-normal"
+              tabIndex={-1}
+              disabled={disabled}
+            >
+              Selectionner un fichier
+            </button>
+          )}
         </div>
+        {/* Hidden description for screen readers */}
+        <div id={`${type}-description`} className="sr-only">
+          Glissez et déposez votre image au format (.jpg). Taille maximale 500
+          ko.
+        </div>
+        {!uploading && <Upload className="w-5 h-5 text-gray-400 mt-2" />}
       </button>
     </div>
   );

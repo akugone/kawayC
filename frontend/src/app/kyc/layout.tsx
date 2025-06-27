@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "KYC Verification | KawaiC",
+  title: "KYC Verification | KawaiiC",
   description:
     "Complete your confidential KYC verification process with iExec's secure enclave technology.",
 };

@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Confidential KYC Verification | KawaiC",
+  title: "Confidential KYC Verification | KawaiiC",
   description:
     "Verify your identity while keeping your documents completely private. Revolutionary KYC powered by iExec's Trusted Execution Environment.",
 };
