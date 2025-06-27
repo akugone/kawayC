@@ -19,7 +19,7 @@ import { DebugSection } from "../../../components/ui/debug-section";
 import { useIexecKYCTask } from "../../../hooks/useIexecKYCTask";
 import { useIexecWithSIWE } from "../../../hooks/useIexecWithSIWE";
 import { useSimpleKycFlow } from "../../../hooks/useSimpleKycFlow";
-
+import JSZip from "jszip";
 export default function KYCProcessingPage() {
   const router = useRouter();
   const { address } = useAccount();
@@ -171,18 +171,56 @@ export default function KYCProcessingPage() {
     if (results) {
       console.log("✅ Results confirmed before navigation:", results);
 
-      // Ensure state is saved
+      // // Ensure state is saved
       completeProcessing(results);
 
-      // Use window.location for reliable navigation
+      // // Use window.location for reliable navigation
       setTimeout(() => {
         window.location.href = "/kyc/result";
       }, 100);
+
     } else {
       console.error("❌ No results available for navigation");
     }
   };
+  async function generateKycPkpassWithTaskId(taskId: string): Promise<Blob> {
+    const zip = new JSZip();
 
+    const passJson = {
+      description: "KYC Proof",
+      formatVersion: 1,
+      organizationName: "Your KYC Demo",
+      passTypeIdentifier: "pass.fake.kyc",
+      serialNumber: taskId,
+      teamIdentifier: "FAKE123456",
+      generic: {
+        primaryFields: [
+          {
+            key: "taskId",
+            label: "Task ID",
+            value: taskId,
+          },
+        ],
+      },
+      barcode: {
+        format: "PKBarcodeFormatQR",
+        message: `kyc:${taskId}`,
+        messageEncoding: "iso-8859-1",
+      },
+    };
+
+    zip.file("pass.json", JSON.stringify(passJson, null, 2));
+
+    // Add dummy images (icon/logo required by Wallet)
+    const placeholderImg = "https://i.ibb.co/PzsTLdJF/Illustration-sans-titre.jpg";
+    const imgBlob = await fetch(placeholderImg).then((res) => res.blob());
+    const imgBuffer = await imgBlob.arrayBuffer();
+
+    zip.file("icon.png", imgBuffer);
+    zip.file("logo.png", imgBuffer);
+
+    return zip.generateAsync({ type: "blob" });
+  }
   const goBack = () => {
     console.log("⬅️ Manual back navigation");
     router.push("/kyc/upload");
@@ -195,6 +233,7 @@ export default function KYCProcessingPage() {
     resetTask();
     router.push("/kyc/upload");
   };
+
 
   const getStatusIcon = () => {
     switch (taskStatus.status) {

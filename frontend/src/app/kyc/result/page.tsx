@@ -22,11 +22,40 @@ import { DebugSection } from "../../../components/ui/debug-section";
 import { useKycFlow } from "../../../hooks/useKycFlow";
 import { WalletPass } from "../../../lib/kyc-types";
 import { WalletPassGenerator } from "../../../lib/wallet-pass";
+import JSZip from "jszip";
+import QRCode from "qrcode";
+import { initializeApp } from "firebase/app";
+import { getStorage } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+const firebaseConfig = {
+  apiKey: "AIzaSyBenguXN91RYgpv8yU0QUj5PZHBxvgLefQ",
+  authDomain: "test-4d27a.firebaseapp.com",
+  projectId: "test-4d27a",
+  storageBucket: "test-4d27a.firebasestorage.app",
+  messagingSenderId: "327411071285",
+  appId: "1:327411071285:web:051b9a3cd81fbcdab5b47c",
+  measurementId: "G-CYXQQ6V5PZ"
+};
 
+const app = initializeApp(firebaseConfig);
+export const storage = getStorage(app);
 export default function KYCResultPage() {
   const router = useRouter();
   const { kycFlow, resetFlow } = useKycFlow();
+  const fakeResults = {
+    taskId: "0xb24b8ce11d513e4a7e2039179c0b88a63d9fac8c7f4e3824c5f29bc1a7a42a1b",
+    ageValidated: true,
+    countryResidence: "France",
+    kycStatus: "valid",
+    timestamp: Date.now(),
+  };
 
+  if (!kycFlow.results) {
+    kycFlow.results = fakeResults as any;
+  }
+  if (!kycFlow.protectedDataAddress) {
+    kycFlow.protectedDataAddress = "0x8a77cab4a285de8a3e937597558b60eac26b844e";
+  }
   const [walletPass, setWalletPass] = useState<WalletPass | null>(null);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
   const [copied, setCopied] = useState(false);
@@ -106,49 +135,85 @@ export default function KYCResultPage() {
   }, [kycFlow.results, router]);
 
   useEffect(() => {
-    if (!kycFlow.results || !kycFlow.protectedDataAddress) {
-      return;
+    const taskId = kycFlow.results?.taskId ?? "0xb24b8ce11d513e4a7e2039179c0b88a63d9fac8c7f4e3824c5f29bc1a7a42a1b";
+
+    if (!taskId || !kycFlow.protectedDataAddress) return;
+
+    const generateKycPkpassWithTaskId = async (taskId: string): Promise<Blob> => {
+      const zip = new JSZip();
+
+      const passJson = {
+        description: "KYC Proof",
+        formatVersion: 1,
+        organizationName: "Your KYC Demo",
+        passTypeIdentifier: "pass.fake.kyc",
+        serialNumber: taskId,
+        teamIdentifier: "FAKE123456",
+        generic: {
+          primaryFields: [
+            {
+              key: "taskId",
+              label: "Task ID",
+              value: taskId,
+            },
+          ],
+        },
+        barcode: {
+          format: "PKBarcodeFormatQR",
+          message: `kyc:${taskId}`,
+          messageEncoding: "iso-8859-1",
+        },
+      };
+
+      zip.file("pass.json", JSON.stringify(passJson, null, 2));
+
+      const placeholderImg = "https://i.ibb.co/PzsTLdJF/Illustration-sans-titre.jpg";
+      const imgBlob = await fetch(placeholderImg).then((res) => res.blob());
+      const imgBuffer = await imgBlob.arrayBuffer();
+
+      zip.file("icon.png", imgBuffer);
+      zip.file("logo.png", imgBuffer);
+
+      return zip.generateAsync({ type: "blob" });
+    };
+    async function uploadPkpass(blob: Blob, taskId: string): Promise<string> {
+      const fileRef = ref(storage, `kyc-passes/${taskId}.pkpass`);
+      await uploadBytes(fileRef, blob, {
+        contentType: "application/vnd.apple.pkpass",
+      });
+
+      const url = await getDownloadURL(fileRef);
+      return url; // This can be used to generate a QR code
     }
 
-    // Generate wallet pass and QR code
-    const generatePass = async () => {
+
+
+
+    const generatePass = async (taskId: string) => {
       try {
-        const pass = WalletPassGenerator.generateWalletURLs(
-          kycFlow.results!,
-          kycFlow.protectedDataAddress!
-        );
+        const blob = await generateKycPkpassWithTaskId(taskId);
+        const tmpFileUrl = await uploadPkpass(blob, taskId);
 
-        setWalletPass(pass);
-
-        // TODO: Replace with actual QR code library
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          canvas.width = 200;
-          canvas.height = 200;
-
-          // Simple QR code representation
-          ctx.fillStyle = "#000";
-          for (let i = 0; i < 20; i++) {
-            for (let j = 0; j < 20; j++) {
-              if (Math.random() > 0.5) {
-                ctx.fillRect(i * 10, j * 10, 10, 10);
-              }
-            }
-          }
-
-          setQrCodeDataUrl(canvas.toDataURL());
+        if (!tmpFileUrl) {
+          throw new Error("Upload failed");
         }
 
-        // Detect platform for wallet buttons
-        setPlatformWallet(WalletPassGenerator.getPlatformWalletButton());
-      } catch (error) {
-        console.error("Error generating wallet pass:", error);
+        const qrCodeDataUrl = await QRCode.toDataURL(tmpFileUrl, {
+          width: 256,
+          errorCorrectionLevel: "H",
+        });
+
+        setQrCodeDataUrl(qrCodeDataUrl);
+        console.log("✅ QR code generated with uploaded .pkpass URL");
+      } catch (err) {
+        console.error("❌ Failed to generate KYC pass and QR code:", err);
       }
     };
 
-    generatePass();
+
+    generatePass(kycFlow.results?.taskId as any);
   }, [kycFlow.results, kycFlow.protectedDataAddress]);
+
 
   const handleCopyQRData = async () => {
     if (walletPass) {
@@ -368,7 +433,7 @@ export default function KYCResultPage() {
                 <QrCode className="w-5 h-5 mr-2" />
                 Verification QR Code
               </h3>
-
+              <canvas id="kyc-qr-canvas" className="mx-auto mb-4" width={256} height={256}></canvas>
               {qrCodeDataUrl && (
                 <div className="bg-gray-50 p-4 rounded-lg mb-4">
                   <img
@@ -377,9 +442,7 @@ export default function KYCResultPage() {
                     className="mx-auto mb-2"
                     style={{ width: "200px", height: "200px" }}
                   />
-                  <p className="text-sm text-gray-600">
-                    Scan to verify identity
-                  </p>
+                  <p className="text-sm text-gray-600">Scan to verify identity</p>
                 </div>
               )}
 
