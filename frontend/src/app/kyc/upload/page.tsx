@@ -1,12 +1,9 @@
 "use client";
 
-import { ArrowLeft, Shield } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React from "react";
+import { useState } from "react";
 import { LoginGated } from "../../../components/auth/LoginGated";
 import { DocumentUpload } from "../../../components/kyc/DocumentUpload";
-import { Button } from "../../../components/ui/button";
-import { DebugSection } from "../../../components/ui/debug-section";
 import { useIexecWithSIWE } from "../../../hooks/useIexecWithSIWE";
 import { useSimpleKycFlow } from "../../../hooks/useSimpleKycFlow";
 import {
@@ -22,6 +19,8 @@ interface StatusUpdate {
 
 export default function KYCUploadPage() {
   const router = useRouter();
+  const [isProcessing, setIsProcessing] = useState(false);
+
   const {
     kycFlow,
     isReady,
@@ -47,10 +46,12 @@ export default function KYCUploadPage() {
   const handleProtectAndProcess = async () => {
     console.log("🚀 handleProtectAndProcess with SIWE session");
 
-    if (!canProcess || !iexecReady) {
+    if (!canProcess || !iexecReady || isProcessing) {
       console.log("❌ Cannot process - conditions not met");
       return;
     }
+
+    setIsProcessing(true);
 
     try {
       // Validate documents before processing
@@ -75,7 +76,6 @@ export default function KYCUploadPage() {
         },
       });
 
-
       console.log("✅ Data protected seamlessly:", protectedData.address);
 
       // 2. Grant access to KYC app - SEAMLESS with SIWE!
@@ -95,10 +95,10 @@ export default function KYCUploadPage() {
           updateStatus(`Access: ${title}`);
         },
       });
-      console.log('grant access:', res);
+      console.log("grant access:", res);
 
       console.log("✅ Access granted seamlessly to KYC app");
-      //startProcessing(protectedData.address);
+      startProcessing(protectedData.address);
 
       // 3. Navigate to processing page with state persistence guarantee
       updateStatus("Redirecting to processing...");
@@ -118,8 +118,7 @@ export default function KYCUploadPage() {
             parsedState.protectedDataAddress
           );
           // Use window.location for reliable navigation
-          //window.location.href = "/kyc/processing";
-          //await processProtectedData({ protectedData: protectedData.address, workerpool: "tdx-labs.pools.iexec.eth", app: appAddress });
+          window.location.href = "/kyc/processing";
         } else {
           console.error("❌ Protected data address missing from saved state");
           // Force save again and navigate with delay
@@ -138,153 +137,209 @@ export default function KYCUploadPage() {
     } catch (error: any) {
       console.error("❌ Protection/processing failed:", error);
       setError(`Failed to process documents: ${error.message}`);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   // Extract button text logic
   const getButtonText = () => {
-    if (!canProcess) return "Upload 3 Documents";
+    if (isProcessing) return "🔄 Préparation en cours...";
+    if (!canProcess) return "En attente de documents...";
     if (!iexecReady) return "Initializing iExec...";
-    return "🚀 Start Verification";
+    return "🚀 Passer à l'étape suivante";
   };
+
+  // Compute the number of uploaded documents
+  const uploadedCount = Object.keys(kycFlow.documents).length;
+  let gifSrc = "/images/vide.gif";
+  if (uploadedCount === 1) gifSrc = "/images/1_element.gif";
+  if (uploadedCount === 2) gifSrc = "/images/2_elements.gif";
+  if (uploadedCount === 3) gifSrc = "/images/complet.gif";
 
   return (
     <LoginGated requireSIWE={true}>
-      <div className="max-w-4xl mx-auto p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <Button variant="ghost" onClick={() => router.push("/kyc")}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
-          </Button>
-          <div className="text-center">
-            <h1 className="text-3xl font-bold">Upload Documents</h1>
-            <p className="text-gray-600">Seamless upload with SIWE session</p>
-          </div>
-          <div className="w-20" /> {/* Spacer for balance */}
-        </div>
-
-        {/* SIWE Status Banner */}
-        <div className="mb-8 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <div className="flex items-center space-x-3">
-            <Shield className="w-6 h-6 text-green-500" />
-            <div>
-              <h3 className="font-semibold text-green-800">
-                ✅ Secure Session Active
-              </h3>
-              <p className="text-green-700 text-sm">
-                All operations will be seamless without additional signatures.
-                Derived wallet: {derivedWalletAddress?.slice(0, 10)}...
-                {derivedWalletAddress?.slice(-8)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Confidential Processing Info */}
-        <div className="mb-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
-          <h2 className="text-xl font-bold text-blue-800 mb-4">
-            🛡️ 100% Confidential Processing
-          </h2>
-          <div className="grid md:grid-cols-2 gap-4 text-sm text-blue-700">
-            <div>
-              <h3 className="font-semibold mb-2">Privacy Guarantees:</h3>
-              <ul className="space-y-1">
-                <li>• Documents encrypted before leaving your device</li>
-                <li>• AI processing in secure Intel SGX/TDX enclaves</li>
-                <li>
-                  • No additional signatures required - seamless SIWE session
-                </li>
-                <li>• Original documents never stored or exposed</li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-2">What's Revealed:</h3>
-              <ul className="space-y-1">
-                <li>• Only age validation + country revealed</li>
-                <li>• Face matching confidence score</li>
-                <li>• Overall verification status</li>
-                <li>• Timestamp with iExec TEE signature</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* Document Upload Components */}
-        <div className="space-y-6">
-          <DocumentUpload
-            type="selfie"
-            document={kycFlow.documents.selfie}
-            onDocumentAdd={addDocument}
-            onDocumentRemove={removeDocument}
-          />
-          <DocumentUpload
-            type="id"
-            document={kycFlow.documents.id}
-            onDocumentAdd={addDocument}
-            onDocumentRemove={removeDocument}
-          />
-          <DocumentUpload
-            type="addressProof"
-            document={kycFlow.documents.addressProof}
-            onDocumentAdd={addDocument}
-            onDocumentRemove={removeDocument}
-          />
-        </div>
-
-        {/* Progress Summary */}
-        <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-          <h3 className="font-semibold mb-2">Upload Progress</h3>
-          <div className="text-sm space-y-1">
-            <div>Documents: {Object.keys(kycFlow.documents).length}/3</div>
-            <div>Ready to process: {isReady ? "✅ Yes" : "❌ No"}</div>
-            <div>iExec ready: {iexecReady ? "✅ Yes" : "❌ No"}</div>
-            <div>SIWE signed: {isSignedIn ? "✅ Yes" : "❌ No"}</div>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="mt-8 flex justify-center space-x-4">
-          <Button
-            onClick={handleProtectAndProcess}
-            disabled={!canProcess || !iexecReady}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg"
-            size="lg"
+      <div
+        className="min-h-screen flex items-center justify-center py-12"
+        style={{ background: "#FAF7ED" }}
+      >
+        <div className="flex gap-16 bg-transparent" style={{ minWidth: 1400 }}>
+          {/* Left: KYC Form */}
+          <div
+            className="flex-1 flex flex-col justify-center bg-white rounded-3xl border border-black p-[64px] min-w-[900px]"
+            style={{ maxWidth: 1000 }}
           >
-            {getButtonText()}
-          </Button>
+            <h2
+              className="mb-12"
+              style={{
+                fontFamily: "Orbitron, sans-serif",
+                fontSize: 32,
+                fontWeight: 700,
+              }}
+            >
+              Création de mon KYC
+            </h2>
+            <div className="flex gap-8 mb-12 justify-center">
+              {/* Selfie */}
+              <div className="flex flex-col items-start justify-start">
+                <div
+                  className="flex items-center mb-1 justify-between w-full"
+                  style={{ fontFamily: "Manrope, sans-serif", fontSize: 16 }}
+                >
+                  <span className="text-s text-gray-700">Selfie</span>
+                  <span className="ml-4 text-xs text-gray-500">
+                    500 ko max.
+                  </span>
+                </div>
+                <DocumentUpload
+                  type="selfie"
+                  document={kycFlow.documents.selfie}
+                  onDocumentAdd={addDocument}
+                  onDocumentRemove={removeDocument}
+                  disabled={kycFlow.processing || isProcessing}
+                />
+              </div>
+              {/* Pièce d'identité */}
+              <div className="flex flex-col items-start justify-start">
+                <div
+                  className="flex items-center mb-1 justify-between w-full"
+                  style={{ fontFamily: "Manrope, sans-serif", fontSize: 16 }}
+                >
+                  <span className="text-s text-gray-700">Pièce d'identité</span>
+                  <span className="ml-4 text-xs text-gray-500">
+                    500 ko max.
+                  </span>
+                </div>
+                <DocumentUpload
+                  type="id"
+                  document={kycFlow.documents.id}
+                  onDocumentAdd={addDocument}
+                  onDocumentRemove={removeDocument}
+                  disabled={kycFlow.processing || isProcessing}
+                />
+              </div>
+              {/* Justificatif */}
+              <div className="flex flex-col items-start justify-start">
+                <div
+                  className="flex items-center mb-1 justify-between w-full"
+                  style={{ fontFamily: "Manrope, sans-serif", fontSize: 16 }}
+                >
+                  <span className="text-s text-gray-700">Justificatif</span>
+                  <span className="ml-4 text-xs text-gray-500">
+                    500 ko max.
+                  </span>
+                </div>
+                <DocumentUpload
+                  type="addressProof"
+                  document={kycFlow.documents.addressProof}
+                  onDocumentAdd={addDocument}
+                  onDocumentRemove={removeDocument}
+                  disabled={kycFlow.processing || isProcessing}
+                />
+              </div>
+            </div>
+            {/* Button with loading state */}
+            <button
+              onClick={handleProtectAndProcess}
+              disabled={!canProcess || !iexecReady || isProcessing}
+              style={{
+                background: "#FFE66C",
+                borderRadius: 8,
+                borderTop: "1px solid #000",
+                borderRight: "2px solid #000",
+                borderBottom: "3px solid #000",
+                borderLeft: "1px solid #000",
+                fontFamily: "Orbitron, sans-serif",
+                fontSize: 20,
+                padding: "20px 24px",
+                marginTop: 16,
+                width: "100%",
+                textAlign: "center",
+                opacity: !canProcess || !iexecReady || isProcessing ? 0.5 : 1,
+                fontWeight: 500,
+                boxSizing: "border-box",
+                cursor:
+                  !canProcess || !iexecReady || isProcessing
+                    ? "not-allowed"
+                    : "pointer",
+                transition: "opacity 0.2s",
+                position: "relative",
+              }}
+            >
+              {isProcessing && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: "50%",
+                    transform: "translate(-50%, -50%)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "20px",
+                      height: "20px",
+                      border: "2px solid #000",
+                      borderTop: "2px solid transparent",
+                      borderRadius: "50%",
+                      animation: "spin 1s linear infinite",
+                    }}
+                  />
+                  <span style={{ fontSize: "16px" }}>
+                    Préparation en cours...
+                  </span>
+                </div>
+              )}
+              <span style={{ visibility: isProcessing ? "hidden" : "visible" }}>
+                {getButtonText()}
+              </span>
+            </button>
+          </div>
+          {/* Right: Bubble Tea Cup */}
+          <div
+            className="flex flex-col items-center justify-center bg-white rounded-3xl border border-black p-[64px] min-w-[360px]"
+            style={{ maxWidth: 360 }}
+          >
+            <img
+              src={gifSrc}
+              alt="Bubble Tea Cup"
+              className="mb-8"
+              style={{ width: 220, height: 220 }}
+            />
+            <h4
+              className="mb-2 text-center"
+              style={{
+                fontFamily: "Orbitron, sans-serif",
+                fontSize: 20,
+                fontWeight: 700,
+              }}
+            >
+              Composez-moi !
+            </h4>
+            <p
+              className="text-gray-500 text-center"
+              style={{ fontFamily: "Manrope, sans-serif", fontSize: 16 }}
+            >
+              Chaque fichier que tu ajoutes me donne des forces !
+            </p>
+          </div>
         </div>
-
-        {/* Status Message */}
-        {kycFlow.statusMessage && (
-          <div className="mt-4 p-3 bg-blue-100 text-blue-800 rounded text-center">
-            {kycFlow.statusMessage}
-          </div>
-        )}
-
-        {/* Error Message */}
-        {kycFlow.error && (
-          <div className="mt-4 p-3 bg-red-100 text-red-800 rounded text-center">
-            ❌ {kycFlow.error}
-          </div>
-        )}
-
-        {/* Debug Section */}
-        <DebugSection
-          data={{
-            documentsCount: Object.keys(kycFlow.documents).length,
-            isReady,
-            canProcess,
-            iexecReady,
-            isSignedIn,
-            derivedWalletAddress,
-            protectedDataAddress: kycFlow.protectedDataAddress,
-            processing: kycFlow.processing,
-            statusMessage: kycFlow.statusMessage,
-            appAddress: process.env.NEXT_PUBLIC_IEXEC_KYC_APP_ADDRESS,
-          }}
-        />
       </div>
+
+      {/* Add CSS for spinner animation */}
+      <style jsx>{`
+        @keyframes spin {
+          0% {
+            transform: translate(-50%, -50%) rotate(0deg);
+          }
+          100% {
+            transform: translate(-50%, -50%) rotate(360deg);
+          }
+        }
+      `}</style>
     </LoginGated>
   );
 }

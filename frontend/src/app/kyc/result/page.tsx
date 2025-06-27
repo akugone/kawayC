@@ -15,7 +15,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { LoginGated } from "../../../components/auth/LoginGated";
 import { Button } from "../../../components/ui/button";
 import { DebugSection } from "../../../components/ui/debug-section";
@@ -124,7 +124,7 @@ export default function KYCResultPage() {
         console.log(
           "❌ RESULT PAGE - No results found after 3 seconds, redirecting"
         );
-        router.push("/kyc");
+        router.push("/kyc/upload");
       }
     }, 3000);
 
@@ -262,7 +262,7 @@ export default function KYCResultPage() {
 
   const handleStartOver = () => {
     resetFlow();
-    router.push("/kyc");
+    router.push("/kyc/upload");
   };
 
   const handleReset = () => {
@@ -306,7 +306,7 @@ export default function KYCResultPage() {
             Please complete the KYC verification process first.
           </p>
           <div className="space-y-2">
-            <Button onClick={() => router.push("/kyc")} className="mr-2">
+            <Button onClick={() => router.push("/kyc/upload")} className="mr-2">
               Start KYC Process
             </Button>
           </div>
@@ -325,7 +325,7 @@ export default function KYCResultPage() {
       <div className="max-w-4xl mx-auto p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <Button variant="ghost" onClick={() => router.push("/kyc")}>
+          <Button variant="ghost" onClick={() => router.push("/kyc/upload")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>

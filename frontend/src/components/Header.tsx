@@ -3,7 +3,7 @@
 import { useAppKit } from "@reown/appkit/react";
 import { CheckCircle, LogOut, Shield, User, X } from "lucide-react";
 import Link from "next/link";
-import React, { useState } from "react";
+import { useState } from "react";
 import { useAccount, useDisconnect } from "wagmi";
 import { useSIWE } from "../hooks/useSIWE";
 import { SIWEModal } from "./auth/SIWEModal";
@@ -65,11 +65,13 @@ export function Header() {
             href="/"
             className="flex items-center space-x-3 hover:opacity-80 transition"
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-              <Shield className="w-5 h-5 text-white" />
-            </div>
+            <img
+              src="/images/logo.png"
+              alt="KawaiiC Logo"
+              className="w-8 h-8 rounded"
+            />
             <div>
-              <h1 className="font-bold text-lg">KawaiC</h1>
+              <h1 className="font-bold text-lg">KawaiiC</h1>
               <p className="text-xs text-gray-600">Powered by iExec TEEs</p>
             </div>
           </Link>
