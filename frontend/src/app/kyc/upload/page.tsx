@@ -9,7 +9,10 @@ import { Button } from "../../../components/ui/button";
 import { DebugSection } from "../../../components/ui/debug-section";
 import { useIexecWithSIWE } from "../../../hooks/useIexecWithSIWE";
 import { useSimpleKycFlow } from "../../../hooks/useSimpleKycFlow";
-import { prepareSimpleKYCData } from "../../../lib/simplified-kyc-data";
+import {
+  prepareSimpleKYCData,
+  validateKYCDocuments,
+} from "../../../lib/simplified-kyc-data";
 
 // Type for iExec DataProtector status updates
 interface StatusUpdate {
@@ -39,7 +42,7 @@ export default function KYCUploadPage() {
     derivedWalletAddress,
   } = useIexecWithSIWE();
 
-  // Main processing function - NOW SEAMLESS!
+  // Main processing function - Improved with proper navigation
   const handleProtectAndProcess = async () => {
     console.log("🚀 handleProtectAndProcess with SIWE session");
 
@@ -49,6 +52,9 @@ export default function KYCUploadPage() {
     }
 
     try {
+      // Validate documents before processing
+      validateKYCDocuments(kycFlow.documents);
+
       // Prepare the simple KYC data format
       updateStatus("Preparing documents...");
       const simpleKYCData = await prepareSimpleKYCData(kycFlow.documents);
@@ -91,13 +97,51 @@ export default function KYCUploadPage() {
       console.log("✅ Access granted seamlessly to KYC app");
       startProcessing(protectedData.address);
 
-      // 3. Redirect to processing page
+      // 3. Navigate to processing page with state persistence guarantee
       updateStatus("Redirecting to processing...");
-      router.push("/kyc/processing");
+
+      // Ensure state is saved before navigation
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Verify state was saved correctly
+      const savedState = localStorage.getItem("kyc-flow-state");
+      console.log("🔍 Verifying saved state before navigation:", savedState);
+
+      if (savedState) {
+        const parsedState = JSON.parse(savedState);
+        if (parsedState.protectedDataAddress) {
+          console.log(
+            "✅ Protected data address confirmed in localStorage:",
+            parsedState.protectedDataAddress
+          );
+          // Use window.location for reliable navigation
+          window.location.href = "/kyc/processing";
+        } else {
+          console.error("❌ Protected data address missing from saved state");
+          // Force save again and navigate with delay
+          startProcessing(protectedData.address);
+          setTimeout(() => {
+            window.location.href = "/kyc/processing";
+          }, 500);
+        }
+      } else {
+        console.error("❌ No state found in localStorage, forcing save");
+        startProcessing(protectedData.address);
+        setTimeout(() => {
+          window.location.href = "/kyc/processing";
+        }, 500);
+      }
     } catch (error: any) {
-      console.error("❌ KYC Upload Error:", error);
-      setError(error.message ?? "Failed to process documents");
+      console.error("❌ Protection/processing failed:", error);
+      setError(`Failed to process documents: ${error.message}`);
     }
+  };
+
+  // Extract button text logic
+  const getButtonText = () => {
+    if (!canProcess) return "Upload 3 Documents";
+    if (!iexecReady) return "Initializing iExec...";
+    return "🚀 Start Verification";
   };
 
   return (
@@ -113,137 +157,115 @@ export default function KYCUploadPage() {
             <h1 className="text-3xl font-bold">Upload Documents</h1>
             <p className="text-gray-600">Seamless upload with SIWE session</p>
           </div>
-          <div className="w-16" /> {/* Spacer */}
+          <div className="w-20" /> {/* Spacer for balance */}
         </div>
 
-        {/* SIWE Status */}
-        {isSignedIn && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center space-x-3">
-              <Shield className="w-6 h-6 text-green-500" />
-              <div>
-                <h3 className="font-semibold text-green-800">
-                  ✅ Secure Session Active
-                </h3>
-                <p className="text-green-700 text-sm">
-                  All operations will be seamless without additional signatures.
-                  Derived wallet: {derivedWalletAddress?.slice(0, 10)}...
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Privacy Notice */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
-          <div className="flex items-start space-x-3">
-            <Shield className="w-6 h-6 text-blue-500 mt-1" />
+        {/* SIWE Status Banner */}
+        <div className="mb-8 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center space-x-3">
+            <Shield className="w-6 h-6 text-green-500" />
             <div>
-              <h3 className="font-semibold text-blue-800 mb-2">
-                100% Confidential Processing
+              <h3 className="font-semibold text-green-800">
+                ✅ Secure Session Active
               </h3>
-              <div className="text-blue-700 text-sm space-y-1">
-                <p>• Documents encrypted before leaving your device</p>
-                <p>• AI processing in secure Intel SGX/TDX enclaves</p>
-                <p>
-                  • <strong>No additional signatures required</strong> -
-                  seamless SIWE session
-                </p>
-                <p>• Only age validation + country revealed</p>
-                <p>• Original documents never stored or exposed</p>
-              </div>
+              <p className="text-green-700 text-sm">
+                All operations will be seamless without additional signatures.
+                Derived wallet: {derivedWalletAddress?.slice(0, 10)}...
+                {derivedWalletAddress?.slice(-8)}
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Document Upload */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
+        {/* Confidential Processing Info */}
+        <div className="mb-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
+          <h2 className="text-xl font-bold text-blue-800 mb-4">
+            🛡️ 100% Confidential Processing
+          </h2>
+          <div className="grid md:grid-cols-2 gap-4 text-sm text-blue-700">
+            <div>
+              <h3 className="font-semibold mb-2">Privacy Guarantees:</h3>
+              <ul className="space-y-1">
+                <li>• Documents encrypted before leaving your device</li>
+                <li>• AI processing in secure Intel SGX/TDX enclaves</li>
+                <li>
+                  • No additional signatures required - seamless SIWE session
+                </li>
+                <li>• Original documents never stored or exposed</li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-2">What's Revealed:</h3>
+              <ul className="space-y-1">
+                <li>• Only age validation + country revealed</li>
+                <li>• Face matching confidence score</li>
+                <li>• Overall verification status</li>
+                <li>• Timestamp with iExec TEE signature</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Document Upload Components */}
+        <div className="space-y-6">
           <DocumentUpload
             type="selfie"
             document={kycFlow.documents.selfie}
             onDocumentAdd={addDocument}
             onDocumentRemove={removeDocument}
-            disabled={kycFlow.processing}
           />
           <DocumentUpload
             type="id"
             document={kycFlow.documents.id}
             onDocumentAdd={addDocument}
             onDocumentRemove={removeDocument}
-            disabled={kycFlow.processing}
           />
           <DocumentUpload
             type="addressProof"
             document={kycFlow.documents.addressProof}
             onDocumentAdd={addDocument}
             onDocumentRemove={removeDocument}
-            disabled={kycFlow.processing}
           />
         </div>
 
-        {/* Progress & Action */}
-        <div className="bg-white border rounded-lg p-6 text-center">
-          <div className="mb-4">
-            <div className="text-2xl font-bold text-blue-600 mb-2">
-              {Object.keys(kycFlow.documents).length}/3 Documents
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
-              <div
-                className="bg-blue-600 h-3 rounded-full transition-all duration-300"
-                style={{
-                  width: `${
-                    (Object.keys(kycFlow.documents).length / 3) * 100
-                  }%`,
-                }}
-              />
-            </div>
+        {/* Progress Summary */}
+        <div className="mt-8 p-4 bg-gray-50 rounded-lg">
+          <h3 className="font-semibold mb-2">Upload Progress</h3>
+          <div className="text-sm space-y-1">
+            <div>Documents: {Object.keys(kycFlow.documents).length}/3</div>
+            <div>Ready to process: {isReady ? "✅ Yes" : "❌ No"}</div>
+            <div>iExec ready: {iexecReady ? "✅ Yes" : "❌ No"}</div>
+            <div>SIWE signed: {isSignedIn ? "✅ Yes" : "❌ No"}</div>
           </div>
+        </div>
 
-          {kycFlow.processing && (
-            <div className="mb-4 text-blue-600">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2" />
-              <p className="text-sm">{kycFlow.statusMessage}</p>
-            </div>
-          )}
-
-          {kycFlow.error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
-              {kycFlow.error}
-            </div>
-          )}
-
+        {/* Action Buttons */}
+        <div className="mt-8 flex justify-center space-x-4">
           <Button
             onClick={handleProtectAndProcess}
             disabled={!canProcess || !iexecReady}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg"
             size="lg"
-            className="min-w-48"
           >
-            {(() => {
-              if (kycFlow.processing) {
-                return "Processing Seamlessly...";
-              }
-              if (isReady && iexecReady) {
-                return (
-                  <>
-                    <Shield className="w-4 h-4 mr-2" />
-                    Start Confidential Verification
-                    <span className="ml-2 text-xs opacity-75">
-                      (No extra signatures!)
-                    </span>
-                  </>
-                );
-              }
-              if (!iexecReady) {
-                return "Initializing SIWE session...";
-              }
-              return `Upload ${
-                3 - Object.keys(kycFlow.documents).length
-              } more documents`;
-            })()}
+            {getButtonText()}
           </Button>
         </div>
 
-        {/* Debug Info */}
+        {/* Status Message */}
+        {kycFlow.statusMessage && (
+          <div className="mt-4 p-3 bg-blue-100 text-blue-800 rounded text-center">
+            {kycFlow.statusMessage}
+          </div>
+        )}
+
+        {/* Error Message */}
+        {kycFlow.error && (
+          <div className="mt-4 p-3 bg-red-100 text-red-800 rounded text-center">
+            ❌ {kycFlow.error}
+          </div>
+        )}
+
+        {/* Debug Section */}
         <DebugSection
           data={{
             documentsCount: Object.keys(kycFlow.documents).length,
@@ -252,7 +274,10 @@ export default function KYCUploadPage() {
             iexecReady,
             isSignedIn,
             derivedWalletAddress,
-            siweSession: "Active - No additional signatures needed!",
+            protectedDataAddress: kycFlow.protectedDataAddress,
+            processing: kycFlow.processing,
+            statusMessage: kycFlow.statusMessage,
+            appAddress: process.env.NEXT_PUBLIC_IEXEC_KYC_APP_ADDRESS,
           }}
         />
       </div>

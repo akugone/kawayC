@@ -36,7 +36,9 @@ export function useIexecWithSIWE() {
       console.log("📍 Derived wallet address:", derivedWallet.address);
 
       // Convert viem client to ethers provider and connect to derived wallet
-      const ethersProvider = new ethers.BrowserProvider(connectorClient.transport);
+      const ethersProvider = new ethers.BrowserProvider(
+        connectorClient.transport
+      );
       const connectedWallet = derivedWallet.connect(ethersProvider);
 
       console.log("🔗 Connected derived wallet to ethers provider");

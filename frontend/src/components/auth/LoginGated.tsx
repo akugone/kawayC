@@ -2,7 +2,7 @@
 
 import { useAppKit } from "@reown/appkit/react";
 import { Shield, User } from "lucide-react";
-import React, { ReactNode, useState } from "react";
+import React, { ReactNode, useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { useSIWE } from "../../hooks/useSIWE";
 import { Button } from "../ui/button";
@@ -21,17 +21,62 @@ export function LoginGated({
   fallbackContent,
   onAuthComplete,
 }: Readonly<LoginGatedProps>) {
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const { isSignedIn } = useSIWE();
   const { open } = useAppKit();
   const [isSIWEModalOpen, setIsSIWEModalOpen] = useState(false);
+  const [hasCheckedSIWE, setHasCheckedSIWE] = useState(false);
+  const [isWalletStateLoading, setIsWalletStateLoading] = useState(true);
+
+  // More robust wallet state checking to prevent flashing during navigation
+  useEffect(() => {
+    // If we have an address, we're definitely connected
+    if (address) {
+      setIsWalletStateLoading(false);
+      return;
+    }
+
+    // If we don't have an address but isConnected is true, wait a bit
+    // This can happen during navigation when state is temporarily lost
+    if (isConnected && !address) {
+      const timer = setTimeout(() => {
+        setIsWalletStateLoading(false);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+
+    // If we're not connected, show immediately
+    if (!isConnected) {
+      setIsWalletStateLoading(false);
+    }
+  }, [isConnected, address]);
 
   // Auto-open SIWE modal when SIWE is required but not signed in
-  React.useEffect(() => {
+  // Add delay to prevent flashing during navigation
+  useEffect(() => {
     if (requireSIWE && isConnected && !isSignedIn) {
-      setIsSIWEModalOpen(true);
+      const timer = setTimeout(() => {
+        setHasCheckedSIWE(true);
+        setIsSIWEModalOpen(true);
+      }, 200); // Small delay to prevent flashing during navigation
+
+      return () => clearTimeout(timer);
+    } else {
+      setHasCheckedSIWE(true);
     }
   }, [requireSIWE, isConnected, isSignedIn]);
+
+  // Show loading state while wallet state is stabilizing
+  if (isWalletStateLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center px-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading wallet state...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isConnected) {
     // Show connect wallet page
@@ -74,7 +119,8 @@ export function LoginGated({
   }
 
   // If SIWE is required and not signed, show SIWE modal
-  if (requireSIWE && !isSignedIn) {
+  // Only show after checking to prevent flashing
+  if (requireSIWE && !isSignedIn && hasCheckedSIWE) {
     return (
       <>
         {children}

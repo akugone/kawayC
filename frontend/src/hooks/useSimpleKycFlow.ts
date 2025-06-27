@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { KYCDocument, KYCResults } from "../lib/simplified-kyc-data";
+import { KYCDocument, KYCResults } from "../lib/kyc-types";
 import { KYC_SESSION_KEY, kycSessionUtils } from "../lib/utils";
 
 interface SimpleKYCFlow {
