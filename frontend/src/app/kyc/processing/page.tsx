@@ -3,6 +3,7 @@
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowRight,
   CheckCircle,
   Clock,
   Cpu,
@@ -10,7 +11,7 @@ import {
   Shield,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { LoginGated } from "../../../components/auth/LoginGated";
 import { Button } from "../../../components/ui/button";
@@ -22,6 +23,8 @@ import { useSimpleKycFlow } from "../../../hooks/useSimpleKycFlow";
 export default function KYCProcessingPage() {
   const router = useRouter();
   const { address } = useAccount();
+  const [isLoading, setIsLoading] = useState(true);
+
   const {
     kycFlow,
     updateStatus,
@@ -46,7 +49,7 @@ export default function KYCProcessingPage() {
     reset: resetTask,
   } = useIexecKYCTask(dataProtectorCore);
 
-  // Check prerequisites
+  // Check prerequisites with improved state loading
   useEffect(() => {
     console.log("🔍 Processing page - checking prerequisites");
     console.log("📊 Current state:", {
@@ -56,15 +59,33 @@ export default function KYCProcessingPage() {
       taskStatus: taskStatus.status,
     });
 
-    if (!kycFlow.protectedDataAddress) {
-      console.log("❌ No protected data address found, redirecting to upload");
-      router.push("/kyc/upload");
-    } else {
+    // Give time for state to load before redirecting
+    const timeoutId = setTimeout(() => {
+      if (!kycFlow.protectedDataAddress && !kycFlow.processing) {
+        console.log(
+          "❌ No protected data address found after timeout, redirecting to upload"
+        );
+        router.push("/kyc/upload");
+      } else {
+        console.log(
+          "✅ Protected data address found:",
+          kycFlow.protectedDataAddress
+        );
+        setIsLoading(false);
+      }
+    }, 2000);
+
+    // Clear timeout if we find the data quickly
+    if (kycFlow.protectedDataAddress) {
+      clearTimeout(timeoutId);
       console.log(
-        "✅ Protected data address found:",
+        "✅ Protected data address found immediately:",
         kycFlow.protectedDataAddress
       );
+      setIsLoading(false);
     }
+
+    return () => clearTimeout(timeoutId);
   }, [
     router,
     kycFlow.protectedDataAddress,
@@ -73,7 +94,7 @@ export default function KYCProcessingPage() {
     iexecReady,
   ]);
 
-  // Auto-start processing
+  // Auto-start real iExec processing
   useEffect(() => {
     console.log("🔍 Auto-start processing effect triggered");
     console.log("📊 Conditions:", {
@@ -81,25 +102,48 @@ export default function KYCProcessingPage() {
       hasAddress: !!address,
       iexecReady,
       taskStatus: taskStatus.status,
+      hasTaskId: !!taskStatus.taskId,
+      isProcessing,
     });
 
     if (
       kycFlow.protectedDataAddress &&
       address &&
       iexecReady &&
-      taskStatus.status === "IDLE"
+      !taskStatus.taskId &&
+      !isProcessing &&
+      taskStatus.status !== "FAILED"
     ) {
-      console.log("🚀 Auto-starting KYC processing...");
-      startProcessing();
+      console.log("🚀 All conditions met, starting real iExec processing...");
+
+      startKYCProcessing({
+        protectedDataAddress: kycFlow.protectedDataAddress,
+        userAddress: address,
+        maxPrice: 1000, // 1000 nRLC
+        tag: ["kyc", "confidential"],
+      }).catch((error) => {
+        console.error("❌ iExec processing failed:", error);
+        setError(`Processing failed: ${error.message}`);
+      });
     } else {
-      console.log("⏸️ Auto-start conditions not met");
+      console.log("⏸️ Auto-start conditions not met:", {
+        hasProtectedData: !!kycFlow.protectedDataAddress,
+        hasAddress: !!address,
+        iexecReady,
+        noTaskId: !taskStatus.taskId,
+        notProcessing: !isProcessing,
+        notFailed: taskStatus.status !== "FAILED",
+      });
     }
   }, [
     kycFlow.protectedDataAddress,
     address,
     iexecReady,
+    taskStatus.taskId,
     taskStatus.status,
-    startProcessing,
+    isProcessing,
+    startKYCProcessing,
+    setError,
   ]);
 
   // Sync task status with KYC flow
@@ -110,51 +154,47 @@ export default function KYCProcessingPage() {
     }
   }, [taskStatus, updateStatus, setTaskId]);
 
-  // Handle completion
+  // Handle completion - NO AUTO-REDIRECT
   useEffect(() => {
     if (results) {
-      console.log("✅ Processing completed, setting results:", results);
+      console.log(
+        "✅ Real iExec processing completed, setting results:",
+        results
+      );
+      completeProcessing(results);
+      // User manually controls navigation to results
+    }
+  }, [results, completeProcessing]);
+
+  // Manual navigation functions
+  const goToResults = async () => {
+    console.log("🚀 Manual navigation to results initiated");
+
+    if (results) {
+      console.log("✅ Results confirmed before navigation:", results);
+
+      // Ensure state is saved
       completeProcessing(results);
 
-      // Auto-redirect to results after 3 seconds
+      // Use window.location for reliable navigation
       setTimeout(() => {
-        router.push("/kyc/result");
-      }, 3000);
-    }
-  }, [results, completeProcessing, router]);
-
-  // Main processing function
-  const startProcessing = async () => {
-    if (!kycFlow.protectedDataAddress || !address) {
-      setError("Missing required data for processing");
-      return;
-    }
-
-    try {
-      console.log("🚀 Starting iExec KYC processing workflow...");
-      console.log("📊 Protected Data:", kycFlow.protectedDataAddress);
-
-      await startKYCProcessing({
-        protectedDataAddress: kycFlow.protectedDataAddress,
-        userAddress: address,
-        maxPrice: 1000, // 1000 nRLC
-        tag: ["kyc", "confidential"],
-      });
-
-      console.log("🎉 Processing workflow completed!");
-    } catch (error: any) {
-      console.error("❌ Processing failed:", error);
-      setError(`Processing failed: ${error.message}`);
+        window.location.href = "/kyc/result";
+      }, 100);
+    } else {
+      console.error("❌ No results available for navigation");
     }
   };
 
+  const goBack = () => {
+    console.log("⬅️ Manual back navigation");
+    router.push("/kyc/upload");
+  };
+
   const handleReset = () => {
-    // Clear localStorage
+    console.log("🔄 Resetting processing state");
     localStorage.removeItem("kyc-flow-state");
-    // Reset both flows
     resetKycFlow();
     resetTask();
-    // Redirect to upload page
     router.push("/kyc/upload");
   };
 
@@ -163,7 +203,7 @@ export default function KYCProcessingPage() {
       case "IDLE":
         return <Clock className="w-12 h-12 text-gray-500" />;
       case "TRIGGERING":
-        return <Shield className="w-12 h-12 text-yellow-500" />;
+        return <Shield className="w-12 h-12 text-yellow-500 animate-pulse" />;
       case "RUNNING":
         return (
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
@@ -191,10 +231,27 @@ export default function KYCProcessingPage() {
   };
 
   const formatDuration = (seconds: number) => {
-    return seconds > 60
-      ? `${Math.floor(seconds / 60)}m ${seconds % 60}s`
-      : `${seconds}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
   };
+
+  // Loading state while checking for protected data
+  if (isLoading) {
+    return (
+      <LoginGated requireSIWE={true}>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <h1 className="text-2xl font-bold mb-4">
+              Loading Processing Data...
+            </h1>
+            <p className="text-gray-600">Retrieving your protected documents</p>
+          </div>
+        </div>
+      </LoginGated>
+    );
+  }
 
   // Check if we have the required data to process
   if (!kycFlow.protectedDataAddress) {
@@ -210,21 +267,9 @@ export default function KYCProcessingPage() {
               It looks like you don't have any documents ready for processing.
               Please upload your documents first.
             </p>
-            <div className="space-y-3">
-              <Button
-                onClick={() => router.push("/kyc/upload")}
-                className="w-full"
-              >
-                Upload Documents
-              </Button>
-              <Button
-                onClick={() => router.push("/kyc")}
-                variant="outline"
-                className="w-full"
-              >
-                Back to Dashboard
-              </Button>
-            </div>
+            <Button onClick={() => router.push("/kyc/upload")} className="mr-2">
+              Upload Documents
+            </Button>
           </div>
         </div>
       </LoginGated>
@@ -236,23 +281,20 @@ export default function KYCProcessingPage() {
       <div className="max-w-4xl mx-auto p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <Button
-            variant="ghost"
-            onClick={() => router.push("/kyc")}
-            disabled={isProcessing}
-          >
+          <Button variant="ghost" onClick={() => router.push("/kyc/upload")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
           <div className="text-center">
-            <h1 className="text-3xl font-bold">Confidential Processing</h1>
-            <p className="text-gray-600">AI verification in secure enclave</p>
+            <h1 className="text-3xl font-bold">Document Processing</h1>
+            <p className="text-gray-600">
+              iExec confidential verification in progress
+            </p>
           </div>
           <Button
             variant="outline"
             size="sm"
             onClick={handleReset}
-            disabled={isProcessing}
             className="text-red-600 border-red-300 hover:bg-red-50"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -260,87 +302,112 @@ export default function KYCProcessingPage() {
           </Button>
         </div>
 
-        {/* Main Status Card */}
-        <div className="bg-white border rounded-lg p-8 mb-8 text-center">
-          {getStatusIcon()}
-
-          <h2
-            className={`text-2xl font-semibold mt-4 mb-2 ${getStatusColor()}`}
-          >
+        {/* Processing Status Display */}
+        <div className="text-center mb-8">
+          <div className="mb-6">{getStatusIcon()}</div>
+          <h2 className={`text-3xl font-bold mb-4 ${getStatusColor()}`}>
             {taskStatus.message}
           </h2>
-
-          <p className="text-gray-600 mb-4">
-            Duration: {formatDuration(duration)}
-          </p>
-
-          {taskStatus.taskId && (
-            <p className="text-xs text-gray-400 mb-6">
-              Task ID: {taskStatus.taskId}
-            </p>
-          )}
-
-          {/* Progress Bar */}
-          {isProcessing && (
-            <div className="mb-6">
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div
-                  className="bg-blue-600 h-3 rounded-full transition-all duration-500"
-                  style={{ width: `${taskStatus.progress}%` }}
-                />
-              </div>
-              <p className="text-sm text-gray-500 mt-2">
-                {taskStatus.progress}% complete
-              </p>
+          <div className="space-y-2">
+            <div className="text-gray-600">
+              Status: <span className="font-medium">{taskStatus.status}</span>
             </div>
-          )}
-
-          {/* Results Preview */}
-          {results && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-              <h3 className="font-semibold text-green-800 mb-2">
-                ✅ Verification Results
-              </h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-green-600">Age Validated:</span>
-                  <span className="ml-2 font-medium">
-                    {results.ageValidated ? "✅ 18+" : "❌ Not verified"}
-                  </span>
+            {taskStatus.taskId && (
+              <div className="text-gray-600 text-sm">
+                Task ID:{" "}
+                <span className="font-mono">
+                  {taskStatus.taskId.slice(0, 20)}...
+                </span>
+              </div>
+            )}
+            {duration > 0 && (
+              <div className="text-gray-600">
+                Duration:{" "}
+                <span className="font-medium">{formatDuration(duration)}</span>
+              </div>
+            )}
+            {taskStatus.progress > 0 && (
+              <div className="w-full max-w-md mx-auto mt-4">
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className="bg-blue-600 h-3 rounded-full transition-all duration-500"
+                    style={{ width: `${taskStatus.progress}%` }}
+                  ></div>
                 </div>
-                <div>
-                  <span className="text-green-600">Country:</span>
-                  <span className="ml-2 font-medium">
-                    {results.countryResidence}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-green-600">Status:</span>
-                  <span className="ml-2 font-medium capitalize">
-                    {results.kycStatus}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-green-600">Verified:</span>
-                  <span className="ml-2 font-medium">
-                    {new Date(results.timestamp).toLocaleTimeString()}
-                  </span>
+                <div className="text-sm text-gray-500 mt-1">
+                  {taskStatus.progress}%
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* Actions */}
+          {/* Manual Controls When Completed */}
           {isCompleted && results && (
-            <Button onClick={() => router.push("/kyc/result")} size="lg">
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Generate Digital ID Card
-            </Button>
+            <div className="mt-8 p-6 bg-green-50 border border-green-200 rounded-lg">
+              <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-green-800 mb-2">
+                🎉 Verification Complete!
+              </h3>
+              <p className="text-green-700 mb-4">
+                Your documents have been successfully verified by the iExec KYC
+                app.
+              </p>
+
+              {/* Show results summary */}
+              <div className="bg-white p-4 rounded border mb-6">
+                <h4 className="font-semibold mb-2">Verification Results:</h4>
+                <div className="text-sm space-y-1">
+                  <div>
+                    ✅ Age Validated: {results.ageValidated ? "Yes" : "No"}
+                  </div>
+                  <div>🌍 Country: {results.countryResidence}</div>
+                  <div>
+                    📋 Status:{" "}
+                    <span className="capitalize">{results.kycStatus}</span>
+                  </div>
+                  {results.faceMatchScore && (
+                    <div>
+                      👤 Face Match: {(results.faceMatchScore * 100).toFixed(1)}
+                      %
+                    </div>
+                  )}
+                  {results.timestamp != null && (
+                    <div>
+                      ⏰ Verified:{" "}
+                      {new Date(results.timestamp).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <p className="text-green-700 mb-6">
+                Ready to generate your digital identity wallet pass?
+              </p>
+
+              <div className="space-x-4">
+                <Button
+                  onClick={goToResults}
+                  className="bg-green-600 hover:bg-green-700"
+                  size="lg"
+                >
+                  🎯 Generate Wallet Pass
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+                <Button variant="outline" onClick={goBack}>
+                  📁 Upload Different Documents
+                </Button>
+              </div>
+            </div>
           )}
 
+          {/* Error State */}
           {isFailed && (
-            <div className="space-y-4">
-              <div className="text-red-600">{kycFlow.error}</div>
+            <div className="mt-8 p-6 bg-red-50 border border-red-200 rounded-lg">
+              <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-red-800 mb-2">
+                Processing Failed
+              </h3>
+              <div className="text-red-700 mb-6">{kycFlow.error}</div>
               <div className="space-x-4">
                 <Button
                   onClick={() => {
@@ -348,34 +415,48 @@ export default function KYCProcessingPage() {
                     router.push("/kyc/upload");
                   }}
                   variant="outline"
+                  className="border-red-300 text-red-700 hover:bg-red-50"
                 >
                   Try Again
                 </Button>
-                <Button onClick={() => router.push("/kyc")} variant="ghost">
+                <Button
+                  onClick={() => router.push("/kyc")}
+                  variant="ghost"
+                  className="text-red-600"
+                >
                   Start Over
                 </Button>
               </div>
             </div>
           )}
 
+          {/* Processing State */}
           {isProcessing && (
-            <div className="text-gray-600 text-sm">
-              <p>⏳ Please wait while your documents are being processed...</p>
+            <div className="mt-8 text-gray-600 text-sm">
+              <p>
+                ⏳ Please wait while your documents are being processed in the
+                secure enclave...
+              </p>
               <p className="text-xs mt-1">
-                Real processing typically takes 2-5 minutes
+                Real iExec processing typically takes 2-5 minutes
+              </p>
+              <p className="text-xs mt-1 text-blue-600">
+                🛡️ Your documents are being analyzed by AI in Intel SGX/TDX
+                secure environment
               </p>
             </div>
           )}
         </div>
 
-        {/* Processing Info */}
+        {/* Processing Information */}
         <div className="grid md:grid-cols-2 gap-6 mb-8">
           <div className="flex items-start space-x-3 p-4 bg-blue-50 rounded-lg">
             <Shield className="w-6 h-6 text-blue-500 mt-1" />
             <div>
               <h3 className="font-semibold text-blue-800">Secure Processing</h3>
               <p className="text-blue-700 text-sm mt-1">
-                Your documents are processed in Intel SGX/TDX secure enclaves
+                Your documents are processed in Intel SGX/TDX secure enclaves on
+                iExec network
               </p>
             </div>
           </div>
@@ -385,22 +466,40 @@ export default function KYCProcessingPage() {
             <div>
               <h3 className="font-semibold text-green-800">AI Verification</h3>
               <p className="text-green-700 text-sm mt-1">
-                Advanced AI analyzes documents and validates age/identity
+                Advanced AI algorithms analyze documents and validate identity
+                information
               </p>
             </div>
           </div>
         </div>
 
+        {/* Real-time Logs */}
+        {taskStatus.logs.length > 0 && (
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold mb-4">Processing Logs</h3>
+            <div className="bg-gray-900 text-green-400 p-4 rounded-lg max-h-64 overflow-y-auto font-mono text-sm">
+              {taskStatus.logs.map((log, index) => (
+                <div key={`${log}-${index}`} className="mb-1">
+                  {log}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Debug Info */}
         <DebugSection
           data={{
+            appAddress: process.env.NEXT_PUBLIC_IEXEC_KYC_APP_ADDRESS,
             protectedData: kycFlow.protectedDataAddress,
             taskId: taskStatus.taskId,
             status: taskStatus.status,
             progress: taskStatus.progress,
             duration: formatDuration(duration),
             results: results ? "Generated" : "Not yet",
-            workflow: "Upload → Protect → Grant → Process → Results",
+            hasResults: !!results,
+            workflow:
+              "Upload → Protect → Grant → Real iExec Processing → Results",
             iexecReady,
             siweSession: "Active - No additional signatures needed!",
           }}

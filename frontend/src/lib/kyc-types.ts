@@ -1,99 +1,162 @@
 export interface KYCDocument {
-  type: "selfie" | "id" | "addressProof";
+  type: "selfie" | "id" | "addressProof"; // Matches your iApp's expected protected data keys
   file: File;
-  buffer: Buffer;
   preview: string;
-  encrypted?: string;
+  buffer?: ArrayBuffer; // For processing
+  uploaded?: boolean;
 }
 
-export interface KYCStep {
-  id: number;
-  title: string;
-  description: string;
-  completed: boolean;
-  current: boolean;
+// Document type configurations
+export const DOCUMENT_TYPES = {
+  selfie: {
+    label: "Selfie Photo",
+    description: "Upload a clear photo of your face",
+    accept: "image/*",
+  },
+  id: {
+    label: "Identity Document",
+    description: "Upload your ID card, passport, or driver's license",
+    accept: "image/*,.pdf",
+  },
+  addressProof: {
+    label: "Proof of Address",
+    description:
+      "Upload a recent utility bill, bank statement, or rental agreement",
+    accept: "image/*,.pdf",
+  },
+} as const;
+
+export interface KYCResults {
+  // Core verification results (standardized for frontend)
+  ageValidated: boolean; // Mapped from your iApp's ageMatch
+  countryResidence: string; // Inferred as "France" for your French document processor
+  kycStatus: "valid" | "failed" | "pending" | "rejected"; // Mapped from your iApp's overall
+  timestamp: number;
+  signature: string;
+
+  // Direct fields from your iApp output (result.txt)
+  faceMatchScore?: number; // Direct from your iApp: faceMatchScore
+  faceValid?: boolean; // Direct from your iApp: faceValid
+  overallValidation?: boolean; // Direct from your iApp: overall
+
+  // Additional processing details (not in your current iApp but could be added)
+  estimatedAge?: number; // Your iApp calculates this internally
+  idName?: string; // Your iApp extracts this
+  billName?: string; // Your iApp extracts this
+  nameMatch?: boolean; // Your iApp validates this
+
+  // Error handling
+  error?: string;
+  warnings?: string[];
+
+  // iExec specific
+  taskId?: string;
+  appVersion?: string;
+  processingNode?: string;
 }
 
 export interface KYCFlow {
   currentStep: number;
-  documents: {
-    selfie?: KYCDocument;
-    id?: KYCDocument;
-    addressProof?: KYCDocument;
-  };
+  documents: Record<string, KYCDocument>;
+  processing: boolean;
   protectedDataAddress?: string;
   taskId?: string;
-  processing: boolean;
   results?: KYCResults;
   error?: string;
+  statusMessage?: string;
 }
 
-export interface KYCResults {
-  ageValidated: boolean;
-  countryResidence: string;
-  kycStatus: "valid" | "invalid" | "pending";
-  timestamp: number;
-  signature?: string;
-}
-
-export interface WalletPass {
-  qrCode: string;
-  passUrl: string;
-  appleWalletUrl?: string;
-  googleWalletUrl?: string;
-  metadata: {
-    ageVerified: boolean;
-    country: string;
-    issueDate: string;
-    expiryDate: string;
-  };
-}
-
-export const KYC_STEPS: KYCStep[] = [
+export const KYC_STEPS = [
   {
     id: 1,
     title: "Connect Wallet",
-    description: "Connect your wallet to start KYC process",
-    completed: false,
-    current: true,
+    description: "Securely connect your Web3 wallet",
+    icon: "wallet",
   },
   {
     id: 2,
     title: "Upload Documents",
-    description: "Upload selfie, ID card and proof of residence",
-    completed: false,
-    current: false,
+    description: "Upload selfie, ID, and proof of address",
+    icon: "upload",
   },
   {
     id: 3,
-    title: "Confidential Processing",
-    description: "AI processing in secure environment",
-    completed: false,
-    current: false,
+    title: "Processing",
+    description: "AI verification in secure enclave",
+    icon: "process",
   },
   {
     id: 4,
-    title: "Generate Wallet Card",
-    description: "Create your digital identity card",
-    completed: false,
-    current: false,
+    title: "Results",
+    description: "Generate your digital identity wallet pass",
+    icon: "result",
   },
 ];
 
-export const DOCUMENT_TYPES = {
-  selfie: {
-    label: "Selfie Photo",
-    accept: "image/*",
-    description: "Take a clear photo of your face",
-  },
-  id: {
-    label: "ID Card",
-    accept: "image/*,application/pdf",
-    description: "Front and back of your ID card",
-  },
-  addressProof: {
-    label: "Proof of Residence",
-    accept: "image/*,application/pdf",
-    description: "Utility bill or bank statement (last 3 months)",
-  },
-} as const;
+// Wallet Pass Types
+export interface WalletPass {
+  passUrl: string;
+  appleWalletUrl?: string;
+  googleWalletUrl?: string;
+  qrCode: string;
+  expiryDate: Date;
+  passData: {
+    name: string;
+    description: string;
+    organization: string;
+    logoUrl?: string;
+    backgroundColor?: string;
+    foregroundColor?: string;
+    fields: {
+      label: string;
+      value: string;
+      textAlignment?: "left" | "center" | "right";
+    }[];
+  };
+}
+
+// iExec Task Status Types
+export interface IExecTaskStatus {
+  status: "IDLE" | "TRIGGERING" | "RUNNING" | "COMPLETED" | "FAILED";
+  progress: number;
+  message: string;
+  logs: string[];
+  taskId?: string;
+  startTime?: number;
+  endTime?: number;
+}
+
+// Processing Parameters
+export interface ProcessingParams {
+  protectedDataAddress: string;
+  userAddress: string;
+  maxPrice?: number;
+  tag?: string[];
+}
+
+// Simple KYC Data Format (for DataProtector) - Matches your iApp's expected keys
+export interface SimpleKYCData {
+  selfie: string; // base64 - your iApp expects this key
+  id: string; // base64 - your iApp expects this key
+  addressProof: string; // base64 - your iApp expects this key (used as 'billBuffer' internally)
+  metadata: {
+    uploadedAt: number;
+    userAddress: string;
+    version: string;
+  };
+}
+
+// Your iApp's raw output format (from result.txt)
+export interface RawKYCAppResult {
+  faceMatchScore: number; // Cosine similarity score from face matching
+  faceValid: boolean; // Whether face match score > 0.65
+  ageMatch: boolean; // Whether estimated age matches ID age (within 6 years)
+  overall: boolean; // Overall validation result (nameMatch && ageMatch && faceValid)
+}
+
+// Internal validation result from your iApp's crossValidate function
+export interface ValidationResult {
+  nameMatch: boolean; // Whether names match between ID and address proof
+  ageMatch: boolean; // Whether estimated age matches ID age
+  overall: boolean; // nameMatch && ageMatch
+}

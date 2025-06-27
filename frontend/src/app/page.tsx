@@ -11,7 +11,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { useAccount } from "wagmi";
 import { Button } from "../components/ui/button";
 

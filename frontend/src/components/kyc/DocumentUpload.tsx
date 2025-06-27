@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle, FileText, Home, Upload, User, X } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { DOCUMENT_TYPES, KYCDocument } from "../../lib/kyc-types";
 import { fileToBuffer } from "../../lib/simplified-kyc-data";
 import { Button } from "../ui/button";

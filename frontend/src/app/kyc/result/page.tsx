@@ -15,7 +15,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { LoginGated } from "../../../components/auth/LoginGated";
 import { Button } from "../../../components/ui/button";
 import { DebugSection } from "../../../components/ui/debug-section";
@@ -33,10 +33,80 @@ export default function KYCResultPage() {
   const [platformWallet, setPlatformWallet] = useState<
     "apple" | "google" | "both" | "none"
   >("none");
+  const [isLoading, setIsLoading] = useState(true);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+
+  useEffect(() => {
+    console.log("🔍 RESULT PAGE - Starting result check process");
+
+    const checkResults = () => {
+      // Check localStorage directly first
+      const rawState = localStorage.getItem("kyc-flow-state");
+      let hasResultsInStorage = false;
+      let storageResults = null;
+
+      if (rawState) {
+        try {
+          const parsedState = JSON.parse(rawState);
+          hasResultsInStorage = !!parsedState.results;
+          storageResults = parsedState.results;
+        } catch (e) {
+          console.error("Failed to parse localStorage:", e);
+        }
+      }
+
+      const debugData = {
+        hookHasResults: !!kycFlow.results,
+        storageHasResults: hasResultsInStorage,
+        hookResults: kycFlow.results,
+        storageResults,
+        timestamp: new Date().toLocaleTimeString(),
+      };
+
+      console.log("🔍 RESULT PAGE - Debug info:", debugData);
+      setDebugInfo(debugData);
+
+      // If we have results in either place, we're good
+      if (kycFlow.results || hasResultsInStorage) {
+        console.log("✅ RESULT PAGE - Results found, staying on page");
+        setIsLoading(false);
+        return true;
+      }
+
+      return false;
+    };
+
+    // Check immediately
+    if (checkResults()) {
+      return;
+    }
+
+    // Check again after 1 second (for state loading)
+    const timeout1 = setTimeout(() => {
+      if (checkResults()) {
+        return;
+      }
+      console.log("⏳ RESULT PAGE - Still waiting for results...");
+    }, 1000);
+
+    // Check again after 3 seconds (final check)
+    const timeout2 = setTimeout(() => {
+      if (!checkResults()) {
+        console.log(
+          "❌ RESULT PAGE - No results found after 3 seconds, redirecting"
+        );
+        router.push("/kyc");
+      }
+    }, 3000);
+
+    return () => {
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
+    };
+  }, [kycFlow.results, router]);
 
   useEffect(() => {
     if (!kycFlow.results || !kycFlow.protectedDataAddress) {
-      router.push("/kyc");
       return;
     }
 
@@ -78,7 +148,7 @@ export default function KYCResultPage() {
     };
 
     generatePass();
-  }, [router, kycFlow.results, kycFlow.protectedDataAddress]);
+  }, [kycFlow.results, kycFlow.protectedDataAddress]);
 
   const handleCopyQRData = async () => {
     if (walletPass) {
@@ -139,20 +209,49 @@ export default function KYCResultPage() {
     router.push("/");
   };
 
-  if (!kycFlow.results) {
+  // Show loading state while checking for results
+  if (isLoading) {
     return (
-      <LoginGated requireSIWE={true}>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold mb-4">No verification results</h1>
-            <div className="space-y-2">
-              <Button onClick={() => router.push("/kyc")} className="mr-2">
-                Start KYC Process
-              </Button>
-            </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <h1 className="text-2xl font-bold mb-4">Loading Results...</h1>
+          <p className="text-gray-600 mb-4">
+            Retrieving your verification results
+          </p>
+
+          {/* Debug info */}
+          <div className="text-left bg-gray-100 p-4 rounded mt-4 text-sm">
+            <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
           </div>
         </div>
-      </LoginGated>
+      </div>
+    );
+  }
+
+  // Show no results state (only after timeout)
+  if (!kycFlow.results) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">
+            No verification results found
+          </h1>
+          <p className="text-gray-600 mb-6">
+            Please complete the KYC verification process first.
+          </p>
+          <div className="space-y-2">
+            <Button onClick={() => router.push("/kyc")} className="mr-2">
+              Start KYC Process
+            </Button>
+          </div>
+
+          {/* Debug info */}
+          <div className="text-left bg-gray-100 p-4 rounded mt-4 text-sm">
+            <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -430,6 +529,7 @@ export default function KYCResultPage() {
             walletPass: walletPass ? "Generated" : "Not generated",
             platform: platformWallet,
             siweSession: "Active - No additional signatures needed!",
+            debugInfo,
           }}
         />
       </div>

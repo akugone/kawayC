@@ -1,6 +1,7 @@
 "use client";
 
 import { IExecDataProtector } from "@iexec/dataprotector";
+import { ethers } from "ethers";
 import { useMemo } from "react";
 import { useAccount, useConnectorClient } from "wagmi";
 import { useSIWE } from "./useSIWE";
@@ -24,7 +25,7 @@ export function useIexecWithSIWE() {
 
     try {
       // Get the derived wallet from SIWE
-      const derivedWallet = getDerivedWallet(connectorClient);
+      const derivedWallet = getDerivedWallet();
 
       if (!derivedWallet) {
         console.warn("No derived wallet available from SIWE");
@@ -34,7 +35,15 @@ export function useIexecWithSIWE() {
       console.log("🔐 Creating DataProtector with SIWE-derived wallet");
       console.log("📍 Derived wallet address:", derivedWallet.address);
 
-      const dataProtector = new IExecDataProtector(derivedWallet, {
+      // Convert viem client to ethers provider and connect to derived wallet
+      const ethersProvider = new ethers.BrowserProvider(
+        connectorClient.transport
+      );
+      const connectedWallet = derivedWallet.connect(ethersProvider);
+
+      console.log("🔗 Connected derived wallet to ethers provider");
+
+      const dataProtector = new IExecDataProtector(connectedWallet, {
         iexecOptions: {
           // Use debug URLs for development
           smsURL: {
