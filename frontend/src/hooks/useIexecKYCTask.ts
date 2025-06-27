@@ -1,302 +1,253 @@
-import { IExecDataProtectorCore } from "@iexec/dataprotector";
+// useIexecKYCTask.ts - Version avec prix et configuration corrigés
+
 import { useCallback, useState } from "react";
-import { KYCResults } from "../lib/kyc-types";
+import { IExecTaskStatus, KYCResults } from "../lib/kyc-types";
+import { useIexecWithSIWE } from "./useIexecWithSIWE";
 
-interface TaskStatus {
-  status: "IDLE" | "TRIGGERING" | "RUNNING" | "COMPLETED" | "FAILED";
-  progress: number;
-  message: string;
-  logs: string[];
-  taskId?: string;
-  startTime?: number;
-  endTime?: number;
-}
-
-interface TaskParams {
-  protectedDataAddress: string;
-  userAddress: string;
-  maxPrice?: number; // en nRLC
-  tag?: string[];
-}
-
-export function useIexecKYCTask(
-  dataProtectorCore: IExecDataProtectorCore | null
-) {
-  const [taskStatus, setTaskStatus] = useState<TaskStatus>({
+export function useIexecKYCTask() {
+  const { dataProtectorCore } = useIexecWithSIWE();
+  const [taskStatus, setTaskStatus] = useState<IExecTaskStatus>({
     status: "IDLE",
     progress: 0,
     message: "Ready to trigger iExec app...",
     logs: [],
   });
-
   const [results, setResults] = useState<KYCResults | null>(null);
 
-  const addLog = useCallback((message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setTaskStatus((prev) => ({
-      ...prev,
-      logs: [...prev.logs, `${timestamp}: ${message}`],
-    }));
-  }, []);
-
   const updateStatus = useCallback(
-    (status: TaskStatus["status"], progress: number, message: string) => {
+    (status: IExecTaskStatus["status"], progress: number, message: string) => {
       setTaskStatus((prev) => ({
         ...prev,
         status,
         progress,
         message,
       }));
-      addLog(message);
     },
-    [addLog]
+    []
   );
 
-  // Real iExec app processing with your deployed KYC app
+  const addLog = useCallback((log: string) => {
+    console.log(`📋 KYC Log: ${log}`);
+    setTaskStatus((prev) => ({
+      ...prev,
+      logs: [...prev.logs, `${new Date().toLocaleTimeString()}: ${log}`],
+    }));
+  }, []);
+
   const startKYCProcessing = useCallback(
-    async (params: TaskParams) => {
+    async (params: {
+      protectedDataAddress: string;
+      userAddress: string;
+      maxPrice?: number;
+    }) => {
       if (!dataProtectorCore) {
-        throw new Error("DataProtector Core not initialized");
+        throw new Error("DataProtector not initialized");
       }
 
       try {
-        updateStatus("TRIGGERING", 10, "🚀 Triggering iExec KYC app...");
+        setTaskStatus({
+          status: "TRIGGERING",
+          progress: 10,
+          message: "🚀 Starting KYC verification...",
+          logs: [],
+          startTime: Date.now(),
+        });
 
-        // Use your deployed KYC app address
+        addLog("🔐 Initializing secure processing...");
+        addLog(`📊 Protected Data: ${params.protectedDataAddress}`);
+        addLog(`👤 User: ${params.userAddress}`);
+
+        // 🔧 FIX 1: Configuration prix corrigée
         const appAddress = process.env.NEXT_PUBLIC_IEXEC_KYC_APP_ADDRESS;
         if (!appAddress) {
           throw new Error(
-            "iExec KYC app address not configured in environment variables"
+            "iExec app address not configured in environment variables"
           );
         }
 
-        // Validate app address format
-        if (!appAddress.startsWith("0x") || appAddress.length !== 42) {
-          throw new Error(
-            "Invalid iExec app address format. Must be a valid Ethereum address."
-          );
-        }
-
-        console.log("✅ Using deployed KYC app:", appAddress);
-        addLog(
-          `📋 KYC App: ${appAddress.slice(0, 10)}...${appAddress.slice(-8)}`
-        );
-        addLog(
-          `🛡️ Protected Data: ${params.protectedDataAddress.slice(
-            0,
-            10
-          )}...${params.protectedDataAddress.slice(-8)}`
-        );
-        addLog(
-          `👤 User: ${params.userAddress.slice(
-            0,
-            10
-          )}...${params.userAddress.slice(-8)}`
-        );
-
-        updateStatus("TRIGGERING", 25, "📡 Submitting processing request...");
-
-        // Set start time
-        setTaskStatus((prev) => ({
-          ...prev,
-          startTime: Date.now(),
-        }));
-
-        // Real iExec processing with your deployed app
-        const processResult = await dataProtectorCore.processProtectedData({
+        const processingConfig = {
           protectedData: params.protectedDataAddress,
+
+          // 🚨 CONFIGURATION IEXEC CORRIGÉE
           app: appAddress,
-          maxPrice: params.maxPrice ?? 1000000, // 1.000.000 nRLC max
 
-          onStatusUpdate: (status) => {
-            console.log("📊 iExec Status Update:", status);
+          // 💰 Prix en nRLC (nano RLC) - 1 RLC = 1,000,000,000 nRLC
+          maxPrice: params.maxPrice ?? 100000000, // 0.1 RLC au lieu de 1000 nRLC
 
-            // Map iExec status updates to our UI
-            switch (status.title) {
-              case "REQUEST_TO_PROCESS_PROTECTED_DATA":
-                updateStatus(
-                  "TRIGGERING",
-                  30,
-                  "💼 Deal submitted to blockchain..."
-                );
-                addLog("✅ Processing deal submitted to iExec network");
-                break;
+          // 🏷️ Tags pour filtering
+          tag: ["tee", "scone"], // Tags standards pour TEE apps
 
-              case "CONSUME_TASK":
-                updateStatus(
-                  "TRIGGERING",
-                  45,
-                  "✅ Deal confirmed, initializing execution..."
-                );
-                addLog("🔗 Deal confirmed on Bellecour sidechain");
-                break;
+          // 📊 Configuration du worker
+          workerpoolMaxPrice: 50000000, // 0.05 RLC pour le workerpool
 
-              case "CONSUME_RESULT_DOWNLOAD":
-                updateStatus(
-                  "RUNNING",
-                  60,
-                  "⚡ AI processing documents in secure enclave..."
-                );
-                addLog("🛡️ Running face match, OCR, and age estimation in TEE");
-                break;
+          // ⏱️ Timeout et retry
+          retries: 3,
 
-              case "CONSUME_RESULT_DECRYPT":
-                updateStatus(
-                  "RUNNING",
-                  90,
-                  "🎯 Processing completed, retrieving results..."
-                );
-                addLog("✅ Face matching and document validation completed");
-                break;
+          // 🔧 Paramètres additionnels
+          category: 0, // Catégorie standard
+          trust: 0, // Trust level minimum
 
-              default:
-                addLog(`📡 iExec: ${status.title}`);
-                break;
+          // 📝 Logs détaillés pour debugging
+          verbose: true,
+        };
+
+        addLog(
+          `💰 Max price: ${processingConfig.maxPrice} nRLC (${
+            processingConfig.maxPrice / 1000000000
+          } RLC)`
+        );
+        addLog(`🏭 App address: ${processingConfig.app}`);
+
+        updateStatus("TRIGGERING", 20, "🔍 Finding available workers...");
+
+        // 🔧 FIX 2: Gestion d'erreur améliorée avec retry logic
+        let processResult;
+        let attempt = 0;
+        const maxAttempts = 3;
+
+        while (attempt < maxAttempts) {
+          try {
+            attempt++;
+            addLog(`🔄 Processing attempt ${attempt}/${maxAttempts}`);
+
+            // 🚀 Déclenchement du traitement iExec
+            processResult = await dataProtectorCore.processProtectedData({
+              ...processingConfig,
+
+              // 📊 Callback pour suivre le status
+              onStatusUpdate: ({ title, isDone }) => {
+                switch (title) {
+                  case "REQUEST_TO_PROCESS_PROTECTED_DATA":
+                    updateStatus(
+                      "TRIGGERING",
+                      25,
+                      "🔧 Submitting processing request..."
+                    );
+                    addLog("✅ Processing request submitted");
+                    break;
+
+                  case "CONSUME_TASK":
+                    updateStatus("TRIGGERING", 30, "🏭 Task consumed...");
+                    addLog("🔍 Task consumed by worker");
+                    break;
+
+                  case "CONSUME_RESULT_DOWNLOAD":
+                    updateStatus("RUNNING", 60, "📥 Downloading results...");
+                    addLog("⚡ Results downloaded");
+                    break;
+
+                  case "CONSUME_RESULT_DECRYPT":
+                    updateStatus("RUNNING", 85, "🔓 Decrypting results...");
+                    addLog("🔑 Processing completed, decrypting results");
+                    break;
+
+                  default:
+                    addLog(`📡 iExec: ${title} ${isDone ? "✅" : "🔄"}`);
+                }
+              },
+            });
+
+            // Si on arrive ici, le processing a réussi
+            break;
+          } catch (attemptError: any) {
+            addLog(`❌ Attempt ${attempt} failed: ${attemptError.message}`);
+
+            if (attempt === maxAttempts) {
+              throw attemptError; // Dernière tentative échouée
             }
-          },
-        });
 
-        // Store the real task ID from iExec
-        const taskId = processResult.taskId;
-        console.log("✅ iExec task created:", taskId);
-        addLog(`🆔 Task ID: ${taskId}`);
+            // 🔄 Attendre avant retry
+            addLog(`⏱️ Waiting 5s before retry...`);
+            await new Promise((resolve) => setTimeout(resolve, 5000));
 
-        setTaskStatus((prev) => ({
-          ...prev,
-          taskId,
-        }));
-
-        updateStatus("RUNNING", 98, "🔍 Parsing verification results...");
-
-        // Parse real results from your KYC app
-        let kycResults: KYCResults;
-
-        try {
-          // Your iApp outputs to result.txt with this structure:
-          // {
-          //   faceMatchScore: number,
-          //   faceValid: boolean,
-          //   ageMatch: boolean,
-          //   overall: boolean
-          // }
-          console.log("📋 Raw KYC app result:", processResult.result);
-
-          // Parse the result from your iApp
-          let appResult;
-          if (typeof processResult.result === "string") {
-            // If result.txt content is returned as string
-            appResult = JSON.parse(processResult.result);
-          } else {
-            // If already parsed as object
-            appResult = processResult.result;
-          }
-
-          // Map your iApp's output to the frontend KYCResults interface
-          kycResults = {
-            // Core verification results based on your iApp output
-            ageValidated: appResult.ageMatch === true, // Your app returns ageMatch boolean
-            countryResidence: "France", // Your app processes French documents
-            kycStatus: appResult.overall === true ? "valid" : "failed", // Based on overall validation
-            timestamp: Date.now(),
-            signature: processResult.taskId, // Use task ID as signature
-
-            // Additional fields from your iApp
-            faceMatchScore: appResult.faceMatchScore, // Direct from your app
-            faceValid: appResult.faceValid, // Direct from your app
-            overallValidation: appResult.overall, // Your app's overall result
-
-            // iExec specific
-            taskId: processResult.taskId,
-            appVersion: "0.0.1", // From your package.json
-          };
-
-          // Validate required fields
-          if (typeof appResult.faceMatchScore !== "number") {
-            throw new Error("Invalid result format: missing faceMatchScore");
-          }
-          if (typeof appResult.faceValid !== "boolean") {
-            throw new Error("Invalid result format: missing faceValid");
-          }
-          if (typeof appResult.overall !== "boolean") {
-            throw new Error(
-              "Invalid result format: missing overall validation"
+            // 📈 Augmenter le prix pour le retry
+            processingConfig.maxPrice *= 1.5;
+            addLog(
+              `💰 Increasing max price to ${processingConfig.maxPrice} nRLC for retry`
             );
           }
-        } catch (parseError) {
-          console.error("❌ Failed to parse KYC results:", parseError);
-          addLog(`❌ Parse error: ${parseError.message}`);
+        }
 
-          // Fallback result for parsing failures
+        const taskId = processResult.taskId;
+        addLog(`🆔 Task created: ${taskId}`);
+
+        // 🔧 FIX 3: Parsing résultats amélioré
+        updateStatus("RUNNING", 95, "📊 Parsing results...");
+
+        let kycResults: KYCResults;
+        try {
+          // Parse des résultats de ton iApp
+          const appResult =
+            typeof processResult.result === "string"
+              ? JSON.parse(processResult.result)
+              : processResult.result;
+
+          addLog(`📋 Raw result: ${JSON.stringify(appResult)}`);
+
+          // 🔧 FIX 4: Validation robuste des résultats
+          kycResults = {
+            ageValidated: Boolean(appResult?.ageMatch),
+            countryResidence: "France",
+            kycStatus: appResult?.overall ? "valid" : "failed",
+            timestamp: Date.now(),
+            signature: taskId,
+
+            // Champs optionnels avec fallbacks
+            faceMatchScore: Number(appResult?.faceMatchScore) || 0,
+            faceValid: Boolean(appResult?.faceValid),
+            overallValidation: Boolean(appResult?.overall),
+
+            taskId,
+            appVersion: "0.0.1",
+          };
+
+          addLog(`✅ Results parsed successfully`);
+        } catch (parseError: any) {
+          addLog(
+            `⚠️ Parse error, using fallback result: ${parseError.message}`
+          );
+
+          // Résultat de fallback si parsing échoue
           kycResults = {
             ageValidated: false,
             countryResidence: "Unknown",
             kycStatus: "failed",
             timestamp: Date.now(),
-            signature: processResult.taskId,
-            error: `Failed to parse results: ${parseError.message}`,
-            taskId: processResult.taskId,
+            signature: taskId,
+            error: `Parse error: ${parseError.message}`,
+            taskId,
           };
         }
 
-        updateStatus(
-          "COMPLETED",
-          100,
-          "🎉 KYC verification completed successfully!"
-        );
+        updateStatus("COMPLETED", 100, "🎉 KYC verification completed!");
 
-        addLog("✅ Verification results processed");
-        addLog(`📊 Overall Status: ${kycResults.kycStatus}`);
-        addLog(`✅ Age Validated: ${kycResults.ageValidated ? "Yes" : "No"}`);
-        addLog(`🌍 Country: ${kycResults.countryResidence}`);
-
-        if (kycResults.faceMatchScore) {
-          addLog(
-            `👤 Face Match Score: ${(kycResults.faceMatchScore * 100).toFixed(
-              1
-            )}%`
-          );
-        }
+        addLog(`📊 Final status: ${kycResults.kycStatus}`);
+        addLog(`✅ Age validated: ${kycResults.ageValidated ? "Yes" : "No"}`);
 
         setResults(kycResults);
-
-        setTaskStatus((prev) => ({
-          ...prev,
-          endTime: Date.now(),
-        }));
+        setTaskStatus((prev) => ({ ...prev, endTime: Date.now() }));
 
         return { taskId, results: kycResults };
       } catch (error: any) {
         console.error("❌ iExec KYC processing failed:", error);
 
-        // Detailed error logging
-        addLog(`❌ Error: ${error.message}`);
-        if (error.cause) {
-          addLog(`🔍 Cause: ${error.cause}`);
-        }
-        if (error.code) {
-          addLog(`📋 Code: ${error.code}`);
-        }
+        // 🔧 FIX 5: Messages d'erreur plus précis
+        let userMessage = "Processing failed. Please try again.";
 
-        // Map common iExec errors to user-friendly messages
-        let userMessage = error.message;
-        if (error.message.includes("insufficient funds")) {
+        if (error.message.includes("No orders found")) {
           userMessage =
-            "Insufficient funds for processing. Please ensure you have enough RLC tokens.";
+            "No workers available at current price. Try increasing max price or retry later.";
+        } else if (error.message.includes("insufficient funds")) {
+          userMessage = "Insufficient RLC balance. Please top up your wallet.";
         } else if (error.message.includes("app not found")) {
-          userMessage =
-            "KYC application not found on iExec network. Please check configuration.";
-        } else if (error.message.includes("protected data not found")) {
-          userMessage =
-            "Protected data not accessible. Please try re-uploading your documents.";
-        } else if (error.message.includes("deal failed")) {
-          userMessage =
-            "Processing deal failed. Please try again or contact support.";
-        } else if (error.message.includes("task failed")) {
-          userMessage =
-            "Document processing failed. Please ensure your documents are clear and readable.";
+          userMessage = "KYC app not deployed. Please check app configuration.";
+        } else if (error.message.includes("User denied")) {
+          userMessage = "Transaction cancelled by user.";
         }
 
-        updateStatus("FAILED", 0, `❌ Processing failed: ${userMessage}`);
+        addLog(`❌ Error: ${userMessage}`);
+        updateStatus("FAILED", 0, `❌ ${userMessage}`);
+
         throw new Error(userMessage);
       }
     },

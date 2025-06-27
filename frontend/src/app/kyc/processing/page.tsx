@@ -35,7 +35,7 @@ export default function KYCProcessingPage() {
   } = useSimpleKycFlow();
 
   // Use the new SIWE-enabled iExec hook
-  const { dataProtectorCore, isReady: iexecReady } = useIexecWithSIWE();
+  const { isReady: iexecReady } = useIexecWithSIWE();
 
   // Use real iExec KYC task hook
   const {
@@ -47,7 +47,7 @@ export default function KYCProcessingPage() {
     duration,
     startKYCProcessing,
     reset: resetTask,
-  } = useIexecKYCTask(dataProtectorCore);
+  } = useIexecKYCTask();
 
   // Check prerequisites with improved state loading
   useEffect(() => {
@@ -120,7 +120,6 @@ export default function KYCProcessingPage() {
         protectedDataAddress: kycFlow.protectedDataAddress,
         userAddress: address,
         maxPrice: 1000, // 1000 nRLC
-        tag: ["kyc", "confidential"],
       }).catch((error) => {
         console.error("❌ iExec processing failed:", error);
         setError(`Processing failed: ${error.message}`);
