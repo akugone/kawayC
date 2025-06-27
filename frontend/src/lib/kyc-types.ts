@@ -136,14 +136,9 @@ export interface ProcessingParams {
 
 // Simple KYC Data Format (for DataProtector) - Matches your iApp's expected keys
 export interface SimpleKYCData {
-  selfie: string; // base64 - your iApp expects this key
-  id: string; // base64 - your iApp expects this key
-  addressProof: string; // base64 - your iApp expects this key (used as 'billBuffer' internally)
-  metadata: {
-    uploadedAt: number;
-    userAddress: string;
-    version: string;
-  };
+  selfie: Buffer; // base64 - your iApp expects this key
+  id: Buffer; // base64 - your iApp expects this key
+  addressProof: Buffer; // base64 - your iApp expects this key (used as 'billBuffer' internally)
 }
 
 // Your iApp's raw output format (from result.txt)

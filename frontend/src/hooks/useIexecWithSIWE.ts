@@ -44,14 +44,10 @@ export function useIexecWithSIWE() {
       console.log("🔗 Connected derived wallet to ethers provider");
 
       const dataProtector = new IExecDataProtector(connectedWallet, {
-        iexecOptions: {
-          // Use debug URLs for development
-          smsURL: {
-            scone: "https://sms.scone-debug.v8-bellecour.iex.ec",
-            gramine: "https://sms.gramine-debug.v8-bellecour.iex.ec",
-          },
-        },
-      });
+  iexecOptions: {
+    smsURL: 'https://sms.labs.iex.ec',
+  },
+});
 
       return dataProtector.core;
     } catch (error) {
@@ -71,7 +67,6 @@ export function useIexecWithSIWE() {
     return await dataProtectorCore.protectData({
       name: `KYC-${Date.now()}`,
       data,
-      ...options,
       onStatusUpdate: (status: StatusUpdate) => {
         console.log(`📊 DataProtector: ${status.title}`, status);
         if (options.onStatusUpdate) {

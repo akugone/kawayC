@@ -39,6 +39,7 @@ export default function KYCUploadPage() {
     isSignedIn,
     protectData,
     grantAccess,
+    processProtectedData,
     derivedWalletAddress,
   } = useIexecWithSIWE();
 
@@ -74,6 +75,7 @@ export default function KYCUploadPage() {
         },
       });
 
+
       console.log("✅ Data protected seamlessly:", protectedData.address);
 
       // 2. Grant access to KYC app - SEAMLESS with SIWE!
@@ -83,7 +85,7 @@ export default function KYCUploadPage() {
       }
 
       updateStatus("Configuring secure access...");
-      await grantAccess({
+      const res = await grantAccess({
         protectedData: protectedData.address,
         authorizedApp: appAddress,
         authorizedUser: "0x0000000000000000000000000000000000000000",
@@ -93,15 +95,16 @@ export default function KYCUploadPage() {
           updateStatus(`Access: ${title}`);
         },
       });
+      console.log('grant access:', res);
 
       console.log("✅ Access granted seamlessly to KYC app");
-      startProcessing(protectedData.address);
+      //startProcessing(protectedData.address);
 
       // 3. Navigate to processing page with state persistence guarantee
       updateStatus("Redirecting to processing...");
 
       // Ensure state is saved before navigation
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       // Verify state was saved correctly
       const savedState = localStorage.getItem("kyc-flow-state");
@@ -115,7 +118,8 @@ export default function KYCUploadPage() {
             parsedState.protectedDataAddress
           );
           // Use window.location for reliable navigation
-          window.location.href = "/kyc/processing";
+          //window.location.href = "/kyc/processing";
+          //await processProtectedData({ protectedData: protectedData.address, workerpool: "tdx-labs.pools.iexec.eth", app: appAddress });
         } else {
           console.error("❌ Protected data address missing from saved state");
           // Force save again and navigate with delay

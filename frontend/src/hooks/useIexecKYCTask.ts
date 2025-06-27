@@ -1,6 +1,7 @@
 import { IExecDataProtectorCore } from "@iexec/dataprotector";
 import { useCallback, useState } from "react";
 import { KYCResults } from "../lib/kyc-types";
+import { unzipSync, strFromU8 } from "fflate";
 
 interface TaskStatus {
   status: "IDLE" | "TRIGGERING" | "RUNNING" | "COMPLETED" | "FAILED";
@@ -106,8 +107,7 @@ export function useIexecKYCTask(
         const processResult = await dataProtectorCore.processProtectedData({
           protectedData: params.protectedDataAddress,
           app: appAddress,
-          maxPrice: params.maxPrice ?? 1000000, // 1.000.000 nRLC max
-
+          workerpool: "tdx-labs.pools.iexec.eth",
           onStatusUpdate: (status) => {
             console.log("📊 iExec Status Update:", status);
 
@@ -172,71 +172,66 @@ export function useIexecKYCTask(
         let kycResults: KYCResults;
 
         try {
-          // Your iApp outputs to result.txt with this structure:
-          // {
-          //   faceMatchScore: number,
-          //   faceValid: boolean,
-          //   ageMatch: boolean,
-          //   overall: boolean
-          // }
-          console.log("📋 Raw KYC app result:", processResult.result);
+  console.log("📦 Received raw result as zip (ArrayBuffer)");
 
-          // Parse the result from your iApp
-          let appResult;
-          if (typeof processResult.result === "string") {
-            // If result.txt content is returned as string
-            appResult = JSON.parse(processResult.result);
-          } else {
-            // If already parsed as object
-            appResult = processResult.result;
-          }
+  // Convert ArrayBuffer to Uint8Array
+  const zipData = new Uint8Array(processResult.result as ArrayBuffer);
 
-          // Map your iApp's output to the frontend KYCResults interface
-          kycResults = {
-            // Core verification results based on your iApp output
-            ageValidated: appResult.ageMatch === true, // Your app returns ageMatch boolean
-            countryResidence: "France", // Your app processes French documents
-            kycStatus: appResult.overall === true ? "valid" : "failed", // Based on overall validation
-            timestamp: Date.now(),
-            signature: processResult.taskId, // Use task ID as signature
+  // Unzip the archive
+  const files = unzipSync(zipData);
 
-            // Additional fields from your iApp
-            faceMatchScore: appResult.faceMatchScore, // Direct from your app
-            faceValid: appResult.faceValid, // Direct from your app
-            overallValidation: appResult.overall, // Your app's overall result
+  if (!files["result.txt"]) {
+    throw new Error("result.txt not found in zip archive");
+  }
 
-            // iExec specific
-            taskId: processResult.taskId,
-            appVersion: "0.0.1", // From your package.json
-          };
+  // Convert result.txt content to string
+  const resultText = strFromU8(files["result.txt"]);
+  console.log("📄 result.txt content:", resultText);
 
-          // Validate required fields
-          if (typeof appResult.faceMatchScore !== "number") {
-            throw new Error("Invalid result format: missing faceMatchScore");
-          }
-          if (typeof appResult.faceValid !== "boolean") {
-            throw new Error("Invalid result format: missing faceValid");
-          }
-          if (typeof appResult.overall !== "boolean") {
-            throw new Error(
-              "Invalid result format: missing overall validation"
-            );
-          }
-        } catch (parseError) {
-          console.error("❌ Failed to parse KYC results:", parseError);
-          addLog(`❌ Parse error: ${parseError.message}`);
+  // Parse JSON
+  const appResult = JSON.parse(resultText);
 
-          // Fallback result for parsing failures
-          kycResults = {
-            ageValidated: false,
-            countryResidence: "Unknown",
-            kycStatus: "failed",
-            timestamp: Date.now(),
-            signature: processResult.taskId,
-            error: `Failed to parse results: ${parseError.message}`,
-            taskId: processResult.taskId,
-          };
-        }
+  // Map to frontend interface
+  kycResults = {
+    ageValidated: appResult.ageMatch === true,
+    countryResidence: "France",
+    kycStatus: appResult.overall === true ? "valid" : "failed",
+    timestamp: Date.now(),
+    signature: processResult.taskId,
+
+    faceMatchScore: appResult.faceMatchScore,
+    faceValid: appResult.faceValid,
+    overallValidation: appResult.overall,
+
+    taskId: processResult.taskId,
+    appVersion: "0.0.1",
+  };
+
+  // Validate fields
+  if (typeof appResult.faceMatchScore !== "number") {
+    throw new Error("Invalid result format: missing faceMatchScore");
+  }
+  if (typeof appResult.faceValid !== "boolean") {
+    throw new Error("Invalid result format: missing faceValid");
+  }
+  if (typeof appResult.overall !== "boolean") {
+    throw new Error("Invalid result format: missing overall validation");
+  }
+} catch (parseError) {
+  const error = parseError as Error;
+  console.error("❌ Failed to parse KYC results:", error);
+  addLog(`❌ Parse error: ${error.message}`);
+
+  kycResults = {
+    ageValidated: false,
+    countryResidence: "Unknown",
+    kycStatus: "failed",
+    timestamp: Date.now(),
+    signature: processResult.taskId,
+    error: `Failed to parse results: ${error.message}`,
+    taskId: processResult.taskId,
+  };
+}
 
         updateStatus(
           "COMPLETED",

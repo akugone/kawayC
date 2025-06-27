@@ -119,8 +119,6 @@ export default function KYCProcessingPage() {
       startKYCProcessing({
         protectedDataAddress: kycFlow.protectedDataAddress,
         userAddress: address,
-        maxPrice: 1000, // 1000 nRLC
-        tag: ["kyc", "confidential"],
       }).catch((error) => {
         console.error("❌ iExec processing failed:", error);
         setError(`Processing failed: ${error.message}`);

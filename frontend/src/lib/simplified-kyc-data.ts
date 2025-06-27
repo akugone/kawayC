@@ -13,15 +13,14 @@ export const fileToBuffer = (file: File): Promise<ArrayBuffer> => {
 };
 
 // Convert File to base64 string
-const fileToBase64 = (file: File): Promise<string> => {
+const fileToBase64 = (file: File): Promise<Buffer> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.readAsDataURL(file);
+    reader.readAsArrayBuffer(file);
     reader.onload = () => {
-      const result = reader.result as string;
-      // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
-      const base64 = result.split(",")[1];
-      resolve(base64);
+      const arrayBuffer = reader.result as ArrayBuffer;
+      const buffer = Buffer.from(arrayBuffer);
+      resolve(buffer);
     };
     reader.onerror = () => reject(new Error("Failed to read file"));
   });
